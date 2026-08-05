@@ -119,3 +119,4 @@ CREATE TABLE manutencao (
 CREATE INDEX idx_leitura_sensor_data ON leitura (sensor_id, registrado_em);
 CREATE INDEX idx_manutencao_status ON manutencao (status);
 CREATE INDEX idx_ativo_criticidade ON ativo (criticidade);
+
