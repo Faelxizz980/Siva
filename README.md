@@ -39,9 +39,11 @@ Hierarquia dos dados: **Empresa → Setor → ESP32 → Sensor**
 - Estrutura modular: `main.ino`, `config.h`, `sensor.h`, `display.h`, `wifi_manager.h`
 
 **Backend**
-- Node.js + Express
-- MySQL para persistência dos dados
-- Autenticação via token (`X-Token` header)
+- Node.js 22+, TypeScript, ESM
+- Express 5 + Zod (validação) + Prisma (MySQL)
+- Autenticação de usuários via JWT e de dispositivos ESP32 via `X-Token`
+- Documentação OpenAPI/Swagger servida em `/docs`
+- Modo mock em memória (`MOCK_MODE=true`) para desenvolver sem depender de MySQL
 
 **Hardware**
 - Microcontrolador ESP32
@@ -72,14 +74,63 @@ Cada sensor envia um JSON identificando sua origem na hierarquia do sistema:
 
 ## 🚀 Como executar
 
-> Preencha esta seção com os passos reais de instalação/configuração do backend, banco de dados e upload do firmware conforme o projeto evoluir.
+O backend fica na raiz deste repositório (`src/`, `prisma/`, etc). Requer Node.js 22+.
+
+### Opção 1 — API fake em memória (recomendado para o frontend)
+
+Não precisa de MySQL nem de `prisma migrate`. Sobe com dados de exemplo já
+populados (empresas, setores, ESP32s, sensores e leituras).
 
 ```bash
-# Backend
-cd backend
 npm install
-npm start
+npm run dev:mock
 ```
+
+A API sobe em `http://localhost:3000`. Usuários de teste (senha `senha123`
+para todos): `super@siva.com` (super_admin), `carla.mendes@aquaplas.com`
+(admin_empresa), `diego.ramos@aquaplas.com` (funcionario).
+
+### Opção 2 — Com MySQL de verdade
+
+```bash
+cp .env.example .env        # ajuste DATABASE_URL/JWT_SECRET se necessário
+npm install
+npm run prisma:migrate      # cria as tabelas a partir de prisma/schema.prisma
+npm run seed                # popula um usuário super_admin e uma empresa de exemplo
+npm run dev
+```
+
+### Opção 3 — Docker Compose (API + MySQL)
+
+```bash
+docker compose up --build
+```
+
+### Documentação da API
+
+Com o servidor rodando, a documentação interativa (Swagger UI) fica em
+`http://localhost:3000/docs`, e o JSON do OpenAPI em `/docs/openapi.json`.
+
+### Simulando um ESP32
+
+Para testar o endpoint de ingestão de leituras (`POST /api/readings`,
+autenticado por `X-Token`) sem hardware:
+
+```bash
+npm run simulate:esp32
+```
+
+### Scripts úteis
+
+| Script | Descrição |
+| --- | --- |
+| `npm run dev` / `npm run dev:mock` | sobe a API com hot-reload (real / mock) |
+| `npm run build` / `npm start` | build de produção e execução do build |
+| `npm run lint` / `npm run format` | ESLint / Prettier |
+| `npm run typecheck` | checagem de tipos sem emitir arquivos |
+| `npm test` / `npm run test:watch` | testes com Vitest |
+| `npm run prisma:migrate` / `npm run prisma:studio` | migrações / explorador do banco |
+| `npm run seed` | popula o banco com dados de exemplo |
 
 ```bash
 # Firmware
