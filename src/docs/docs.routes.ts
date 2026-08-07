@@ -15,27 +15,39 @@ docsRoutes.get('/openapi.json', (_req, res) => {
 docsRoutes.use('/assets', express.static(swaggerAssetsPath));
 
 docsRoutes.get('/', (_req, res) => {
+  const paths = Object.entries(openApiDocument.paths ?? {});
+  const items = paths
+    .map(([route, methods]) => {
+      const methodEntries = Object.entries(methods as Record<string, unknown>);
+      const badges = methodEntries
+        .map(
+          ([method]) =>
+            `<span style="display:inline-block;margin-right:8px;padding:2px 6px;border-radius:4px;background:#2563eb;color:#fff;font-size:12px;text-transform:uppercase;">${method}</span>`,
+        )
+        .join('');
+      return `<li style="margin-bottom:12px;"><strong>${route}</strong><br />${badges}</li>`;
+    })
+    .join('');
+
   res.type('html').send(`<!doctype html>
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
     <title>SIVA API — Documentação</title>
-    <link rel="stylesheet" href="assets/swagger-ui.css" />
+    <style>
+      body { font-family: Arial, sans-serif; margin: 2rem; line-height: 1.5; color: #111827; }
+      code { background: #f3f4f6; padding: 2px 4px; border-radius: 4px; }
+      a { color: #2563eb; }
+      ul { padding-left: 1.2rem; }
+    </style>
   </head>
   <body>
-    <div id="swagger-ui"></div>
-    <script src="assets/swagger-ui-bundle.js"></script>
-    <script src="assets/swagger-ui-standalone-preset.js"></script>
-    <script>
-      window.onload = () => {
-        window.ui = SwaggerUIBundle({
-          url: '${path.posix.join('.', 'openapi.json')}',
-          dom_id: '#swagger-ui',
-          presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
-          layout: 'StandaloneLayout',
-        });
-      };
-    </script>
+    <h1>SIVA API — Documentação</h1>
+    <p>Esta página mostra os endpoints disponíveis na API mockada.</p>
+    <p>Health check: <code>/api/health</code></p>
+    <p>OpenAPI JSON: <a href="/docs/openapi.json">/docs/openapi.json</a></p>
+    <h2>Endpoints</h2>
+    <ul>${items}</ul>
   </body>
 </html>`);
 });
