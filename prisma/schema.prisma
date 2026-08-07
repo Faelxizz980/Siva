@@ -100,7 +100,7 @@ model Esp32 {
   id             Int       @id @default(autoincrement())
   setorId        Int       @map("setor_id")
   espId          String    @unique @map("esp_id") @db.VarChar(50)
-  token          String    @db.VarChar(255)
+  token          String    @unique @db.VarChar(255)
   descricao      String?   @db.VarChar(100)
   ultimoContato  DateTime? @map("ultimo_contato")
   criadoEm       DateTime  @default(now()) @map("criado_em")
