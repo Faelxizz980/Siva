@@ -1,4 +1,8 @@
-import type { CrudRepository, ListOptions, ListResult } from '../../interfaces/repository.interface.js';
+import type {
+  CrudRepository,
+  ListOptions,
+  ListResult,
+} from '../../interfaces/repository.interface.js';
 import type { MockCollection } from './mock-collection.js';
 
 export interface MockRepositoryOptions<TEntity> {

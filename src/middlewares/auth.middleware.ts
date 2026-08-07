@@ -31,7 +31,11 @@ export function authorize(...allowed: AuthenticatedUser['tipo'][]) {
 }
 
 /** Autentica dispositivos ESP32 via `X-Token`, conforme payload descrito no README. */
-export async function authenticateDevice(req: Request, _res: Response, next: NextFunction): Promise<void> {
+export async function authenticateDevice(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+): Promise<void> {
   const token = req.headers['x-token'];
   const value = Array.isArray(token) ? token[0] : token;
 
@@ -44,6 +48,10 @@ export async function authenticateDevice(req: Request, _res: Response, next: Nex
     throw new UnauthorizedError('X-Token inválido.');
   }
 
-  req.device = { id: device.id, espId: device.espId, setorId: device.setorId } satisfies AuthenticatedDevice;
+  req.device = {
+    id: device.id,
+    espId: device.espId,
+    setorId: device.setorId,
+  } satisfies AuthenticatedDevice;
   next();
 }

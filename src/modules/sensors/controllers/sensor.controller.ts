@@ -9,7 +9,11 @@ export const sensorController = {
     const { page, pageSize } = parsePagination(req);
     const esp32Id = req.query.esp32Id ? Number(req.query.esp32Id) : undefined;
     const ativoId = req.query.ativoId ? Number(req.query.ativoId) : undefined;
-    const { items, total } = await sensorService.list(req.user!, { esp32Id, ativoId }, { page, pageSize });
+    const { items, total } = await sensorService.list(
+      req.user!,
+      { esp32Id, ativoId },
+      { page, pageSize },
+    );
     paginated(res, items, { total, page, pageSize });
   }),
 

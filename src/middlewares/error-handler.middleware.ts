@@ -32,7 +32,9 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     success: false,
     error: {
       code: 'INTERNAL_SERVER_ERROR',
-      message: isProduction ? 'Erro interno do servidor.' : String(err instanceof Error ? err.message : err),
+      message: isProduction
+        ? 'Erro interno do servidor.'
+        : String(err instanceof Error ? err.message : err),
     },
   });
 }

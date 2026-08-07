@@ -1,4 +1,8 @@
-import type { CrudRepository, ListOptions, ListResult } from '../../../interfaces/repository.interface.js';
+import type {
+  CrudRepository,
+  ListOptions,
+  ListResult,
+} from '../../../interfaces/repository.interface.js';
 import { env } from '../../../config/env.js';
 import { prisma } from '../../../database/prisma.js';
 import { createMockRepository } from '../../../shared/mock/create-mock-repository.js';
@@ -13,7 +17,12 @@ const prismaRepository: CompanyRepository = {
     const { page = 1, pageSize = 20, filter = {} } = options;
     const where = filter.id ? { id: Number(filter.id) } : {};
     const [items, total] = await Promise.all([
-      prisma.empresa.findMany({ where, skip: (page - 1) * pageSize, take: pageSize, orderBy: { id: 'asc' } }),
+      prisma.empresa.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { id: 'asc' },
+      }),
       prisma.empresa.count({ where }),
     ]);
     return { items, total };

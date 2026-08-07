@@ -9,7 +9,11 @@ import type { CreateSensorDTO, UpdateSensorDTO } from '../dtos/sensor.dtos.js';
 const repository = createSensorRepository();
 
 export const sensorService = {
-  async list(user: AuthenticatedUser, filter: { esp32Id?: number; ativoId?: number }, options: ListOptions = {}) {
+  async list(
+    user: AuthenticatedUser,
+    filter: { esp32Id?: number; ativoId?: number },
+    options: ListOptions = {},
+  ) {
     if (filter.esp32Id) await deviceService.getAccessible(user, filter.esp32Id);
     if (filter.ativoId) await assetService.getAccessible(user, filter.ativoId);
     return repository.list({ ...options, filter: { ...options.filter, ...filter } });

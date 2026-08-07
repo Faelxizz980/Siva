@@ -1,4 +1,8 @@
-import type { CrudRepository, ListOptions, ListResult } from '../../../interfaces/repository.interface.js';
+import type {
+  CrudRepository,
+  ListOptions,
+  ListResult,
+} from '../../../interfaces/repository.interface.js';
 import { env } from '../../../config/env.js';
 import { prisma } from '../../../database/prisma.js';
 import { createMockRepository } from '../../../shared/mock/create-mock-repository.js';
@@ -23,7 +27,12 @@ const prismaRepository: DeviceRepository = {
     const { page = 1, pageSize = 20, filter = {} } = options;
     const where = buildWhere(filter);
     const [items, total] = await Promise.all([
-      prisma.esp32.findMany({ where, skip: (page - 1) * pageSize, take: pageSize, orderBy: { id: 'asc' } }),
+      prisma.esp32.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { id: 'asc' },
+      }),
       prisma.esp32.count({ where }),
     ]);
     return { items, total };

@@ -23,7 +23,9 @@ export const authService = {
       tipo: user.tipo,
       empresaId: user.empresaId,
     };
-    const token = jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN } as jwt.SignOptions);
+    const token = jwt.sign(payload, env.JWT_SECRET, {
+      expiresIn: env.JWT_EXPIRES_IN,
+    } as jwt.SignOptions);
 
     return { token, user: toPublicUser(user) };
   },

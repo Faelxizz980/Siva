@@ -1,5 +1,9 @@
 import bcrypt from 'bcryptjs';
-import { ForbiddenError, NotFoundError, ValidationError } from '../../../shared/errors/app-error.js';
+import {
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} from '../../../shared/errors/app-error.js';
 import { assertSameCompany, isSuperAdmin } from '../../../shared/auth/scope.js';
 import type { ListOptions } from '../../../interfaces/repository.interface.js';
 import type { AuthenticatedUser } from '../../../types/express.js';
@@ -13,7 +17,10 @@ const SALT_ROUNDS = 10;
 export const userService = {
   async list(actor: AuthenticatedUser, options: ListOptions = {}) {
     const empresaId = isSuperAdmin(actor) ? options.filter?.empresaId : (actor.empresaId ?? -1);
-    const { items, total } = await repository.list({ ...options, filter: { ...options.filter, empresaId } });
+    const { items, total } = await repository.list({
+      ...options,
+      filter: { ...options.filter, empresaId },
+    });
     return { items: items.map(toPublicUser), total };
   },
 

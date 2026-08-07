@@ -67,13 +67,21 @@ function seed(): void {
     criadoEm: hoursAgo(470),
   });
 
-  const producao = sectors.create({ empresaId: aquaplas.id, nome: 'Produção', criadoEm: hoursAgo(700) });
+  const producao = sectors.create({
+    empresaId: aquaplas.id,
+    nome: 'Produção',
+    criadoEm: hoursAgo(700),
+  });
   const resfriamento = sectors.create({
     empresaId: aquaplas.id,
     nome: 'Resfriamento',
     criadoEm: hoursAgo(700),
   });
-  const limpeza = sectors.create({ empresaId: metaltec.id, nome: 'Limpeza Industrial', criadoEm: hoursAgo(460) });
+  const limpeza = sectors.create({
+    empresaId: metaltec.id,
+    nome: 'Limpeza Industrial',
+    criadoEm: hoursAgo(460),
+  });
 
   const tanqueEta = assets.create({
     setorId: producao.id,

@@ -44,7 +44,12 @@ async function main(): Promise<void> {
   const esp32 = await prisma.esp32.upsert({
     where: { espId: 'esp_01' },
     update: {},
-    create: { setorId: setor.id, espId: 'esp_01', token: 'dev-token-esp01', descricao: 'ESP32 de produção' },
+    create: {
+      setorId: setor.id,
+      espId: 'esp_01',
+      token: 'dev-token-esp01',
+      descricao: 'ESP32 de produção',
+    },
   });
 
   const ativo = await prisma.ativo.upsert({

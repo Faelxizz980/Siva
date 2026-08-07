@@ -7,6 +7,16 @@ import { ingestReadingSchema, listReadingsQuerySchema } from '../validators/read
 export const readingRoutes = Router();
 
 // Endpoint chamado pelo firmware do ESP32 — autenticado por X-Token, não por JWT de usuário.
-readingRoutes.post('/', authenticateDevice, validate({ body: ingestReadingSchema }), readingController.ingest);
+readingRoutes.post(
+  '/',
+  authenticateDevice,
+  validate({ body: ingestReadingSchema }),
+  readingController.ingest,
+);
 
-readingRoutes.get('/', authenticateUser, validate({ query: listReadingsQuerySchema }), readingController.list);
+readingRoutes.get(
+  '/',
+  authenticateUser,
+  validate({ query: listReadingsQuerySchema }),
+  readingController.list,
+);

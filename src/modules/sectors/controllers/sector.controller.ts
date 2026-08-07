@@ -8,7 +8,11 @@ export const sectorController = {
   list: asyncHandler(async (req: Request, res: Response) => {
     const { page, pageSize } = parsePagination(req);
     const empresaId = req.query.empresaId ? Number(req.query.empresaId) : undefined;
-    const { items, total } = await sectorService.list(req.user!, { page, pageSize, filter: { empresaId } });
+    const { items, total } = await sectorService.list(req.user!, {
+      page,
+      pageSize,
+      filter: { empresaId },
+    });
     paginated(res, items, { total, page, pageSize });
   }),
 

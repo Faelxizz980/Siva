@@ -1,4 +1,8 @@
-import type { CrudRepository, ListOptions, ListResult } from '../../../interfaces/repository.interface.js';
+import type {
+  CrudRepository,
+  ListOptions,
+  ListResult,
+} from '../../../interfaces/repository.interface.js';
 import { env } from '../../../config/env.js';
 import { prisma } from '../../../database/prisma.js';
 import { createMockRepository } from '../../../shared/mock/create-mock-repository.js';
@@ -6,7 +10,11 @@ import { maintenances as maintenancesMock } from '../../../shared/mock/mock-stor
 import type { Maintenance } from '../entities/maintenance.entity.js';
 import type { CreateMaintenanceDTO, UpdateMaintenanceDTO } from '../dtos/maintenance.dtos.js';
 
-export type MaintenanceRepository = CrudRepository<Maintenance, CreateMaintenanceDTO, UpdateMaintenanceDTO>;
+export type MaintenanceRepository = CrudRepository<
+  Maintenance,
+  CreateMaintenanceDTO,
+  UpdateMaintenanceDTO
+>;
 
 function buildWhere(filter: Record<string, unknown>) {
   const where: Record<string, unknown> = {};

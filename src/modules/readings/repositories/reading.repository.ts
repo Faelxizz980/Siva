@@ -31,15 +31,27 @@ const prismaRepository: ReadingRepository = {
   },
 };
 
-function mapLeitura(row: { id: bigint; sensorId: number; vazao: number; registradoEm: Date }): Reading {
-  return { id: Number(row.id), sensorId: row.sensorId, vazao: row.vazao, registradoEm: row.registradoEm };
+function mapLeitura(row: {
+  id: bigint;
+  sensorId: number;
+  vazao: number;
+  registradoEm: Date;
+}): Reading {
+  return {
+    id: Number(row.id),
+    sensorId: row.sensorId,
+    vazao: row.vazao,
+    registradoEm: row.registradoEm,
+  };
 }
 
 const mockRepository: ReadingRepository = {
   async list(options: ListOptions = {}) {
     const { page = 1, pageSize = 50, filter = {} } = options;
     const all = readingsMock
-      .list((item) => (filter.sensorId !== undefined ? item.sensorId === Number(filter.sensorId) : true))
+      .list((item) =>
+        filter.sensorId !== undefined ? item.sensorId === Number(filter.sensorId) : true,
+      )
       .sort((a, b) => b.registradoEm.getTime() - a.registradoEm.getTime());
     const start = (page - 1) * pageSize;
     return { items: all.slice(start, start + pageSize), total: all.length };

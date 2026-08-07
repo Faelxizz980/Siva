@@ -13,13 +13,21 @@ export const maintenanceRoutes = Router();
 
 maintenanceRoutes.use(authenticateUser);
 
-maintenanceRoutes.get('/', validate({ query: listMaintenancesQuerySchema }), maintenanceController.list);
+maintenanceRoutes.get(
+  '/',
+  validate({ query: listMaintenancesQuerySchema }),
+  maintenanceController.list,
+);
 maintenanceRoutes.get(
   '/:id',
   validate({ params: maintenanceIdParamSchema }),
   maintenanceController.getById,
 );
-maintenanceRoutes.post('/', validate({ body: createMaintenanceSchema }), maintenanceController.create);
+maintenanceRoutes.post(
+  '/',
+  validate({ body: createMaintenanceSchema }),
+  maintenanceController.create,
+);
 maintenanceRoutes.patch(
   '/:id',
   validate({ params: maintenanceIdParamSchema, body: updateMaintenanceSchema }),

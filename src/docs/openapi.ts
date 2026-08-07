@@ -196,7 +196,9 @@ export const openApiDocument = {
         summary: 'Autentica um usuário do dashboard e retorna um JWT.',
         requestBody: {
           required: true,
-          content: { 'application/json': { schema: { $ref: '#/components/schemas/LoginRequest' } } },
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/LoginRequest' } },
+          },
         },
         responses: { '200': itemResponse('#/components/schemas/LoginResponse') },
       },
@@ -237,7 +239,10 @@ export const openApiDocument = {
         tags: ['Sectors'],
         summary: 'Lista setores de uma empresa.',
         security: [bearerAuth],
-        parameters: [...paginationParams, { name: 'empresaId', in: 'query', schema: { type: 'integer' } }],
+        parameters: [
+          ...paginationParams,
+          { name: 'empresaId', in: 'query', schema: { type: 'integer' } },
+        ],
         responses: { '200': paginatedResponse('#/components/schemas/Sector') },
       },
       post: {
@@ -252,7 +257,10 @@ export const openApiDocument = {
         tags: ['Assets'],
         summary: 'Lista ativos de um setor.',
         security: [bearerAuth],
-        parameters: [...paginationParams, { name: 'setorId', in: 'query', required: true, schema: { type: 'integer' } }],
+        parameters: [
+          ...paginationParams,
+          { name: 'setorId', in: 'query', required: true, schema: { type: 'integer' } },
+        ],
         responses: { '200': paginatedResponse('#/components/schemas/Asset') },
       },
       post: {
@@ -267,7 +275,10 @@ export const openApiDocument = {
         tags: ['Devices'],
         summary: 'Lista dispositivos ESP32 de um setor.',
         security: [bearerAuth],
-        parameters: [...paginationParams, { name: 'setorId', in: 'query', required: true, schema: { type: 'integer' } }],
+        parameters: [
+          ...paginationParams,
+          { name: 'setorId', in: 'query', required: true, schema: { type: 'integer' } },
+        ],
         responses: { '200': paginatedResponse('#/components/schemas/Device') },
       },
       post: {
@@ -301,7 +312,10 @@ export const openApiDocument = {
         tags: ['Readings'],
         summary: 'Lista o histórico de vazão de um sensor.',
         security: [bearerAuth],
-        parameters: [...paginationParams, { name: 'sensorId', in: 'query', required: true, schema: { type: 'integer' } }],
+        parameters: [
+          ...paginationParams,
+          { name: 'sensorId', in: 'query', required: true, schema: { type: 'integer' } },
+        ],
         responses: { '200': paginatedResponse('#/components/schemas/Reading') },
       },
       post: {
@@ -310,7 +324,9 @@ export const openApiDocument = {
         security: [xTokenAuth],
         requestBody: {
           required: true,
-          content: { 'application/json': { schema: { $ref: '#/components/schemas/IngestReading' } } },
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/IngestReading' } },
+          },
         },
         responses: { '201': itemResponse('#/components/schemas/Reading') },
       },
@@ -320,7 +336,10 @@ export const openApiDocument = {
         tags: ['Maintenances'],
         summary: 'Lista chamados de manutenção de um sensor.',
         security: [bearerAuth],
-        parameters: [...paginationParams, { name: 'sensorId', in: 'query', required: true, schema: { type: 'integer' } }],
+        parameters: [
+          ...paginationParams,
+          { name: 'sensorId', in: 'query', required: true, schema: { type: 'integer' } },
+        ],
         responses: { '200': paginatedResponse('#/components/schemas/Maintenance') },
       },
       post: {
@@ -335,7 +354,9 @@ export const openApiDocument = {
         tags: ['Alerts'],
         summary: 'Lista alertas de vazamento/consumo anômalo (não implementado nesta etapa).',
         security: [bearerAuth],
-        responses: { '501': { description: 'Ainda não implementado — ver "Próximas etapas" no README.' } },
+        responses: {
+          '501': { description: 'Ainda não implementado — ver "Próximas etapas" no README.' },
+        },
       },
     },
   },
