@@ -1,6 +1,8 @@
 node_modules/
 dist/
 coverage/
+firmware/.pio/
+firmware/src/secrets.h
 .env
 .env.*.local
 *.log
