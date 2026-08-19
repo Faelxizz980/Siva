@@ -18,6 +18,19 @@ inline bool setupDisplay() {
   return true;
 }
 
+// Tela de texto simples, usada para status de boot e instruções do portal Wi-Fi.
+inline void showMessage(const char* title, const char* line1, const char* line2) {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+  display.println(title);
+  display.println();
+  display.println(line1);
+  display.println(line2);
+  display.display();
+}
+
 inline void showReading(float vazao, bool wifiConnected) {
   display.clearDisplay();
   display.setTextSize(1);

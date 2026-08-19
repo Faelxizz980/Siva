@@ -1,8 +1,22 @@
 #pragma once
 
-// Wi-Fi e endereço do backend ficam em secrets.h (gitignored) — copie
+// O endereço do backend fica em secrets.h (gitignored) — copie
 // secrets.h.example para secrets.h e preencha antes de gravar no ESP32.
+// A credencial do Wi-Fi NÃO mora aqui: é informada uma vez pelo portal de
+// configuração e gravada na NVS do próprio ESP32 (ver wifi_manager.h).
 #include "secrets.h"
+
+// Portal de configuração do Wi-Fi. Sem rede salva, o ESP32 sobe este access
+// point; o usuário conecta pelo celular e escolhe a rede numa lista.
+#define WIFI_PORTAL_SSID "SIVA-setup"
+// WPA2 exige no mínimo 8 caracteres.
+#define WIFI_PORTAL_PASSWORD "siva1234"
+
+// Tempo tentando a rede já salva antes de abrir o portal.
+#define WIFI_CONNECT_TIMEOUT_S 20
+// Tempo com o portal aberto antes de desistir e seguir offline. Sem esse limite
+// o boot travaria indefinidamente enquanto ninguém configurasse a rede.
+#define WIFI_PORTAL_TIMEOUT_S 180
 
 #define API_PORT 3000
 #define API_PATH "/api/readings"

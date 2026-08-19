@@ -42,9 +42,16 @@ void sendReading(float vazao) {
 
 void setup() {
   Serial.begin(115200);
-  connectWiFi();
+
+  // O display sobe primeiro para conseguir mostrar as instruções do portal
+  // Wi-Fi. O sensor sobe por último: o contador de pulsos só deve começar
+  // depois da conexão, senão o tempo parado no portal viraria uma vazão falsa
+  // na primeira leitura.
   setupDisplay();
+  showMessage("SIVA", "Iniciando...", "");
+  connectWiFi();
   setupFlowSensor();
+
   lastSendAt = millis();
 }
 
@@ -54,6 +61,7 @@ void loop() {
 
   if (elapsed >= SEND_INTERVAL_MS) {
     float vazao = readFlowRate(elapsed);
+    Serial.printf("Vazao: %.2f L/min\n", vazao);
     showReading(vazao, WiFi.status() == WL_CONNECTED);
     sendReading(vazao);
     lastSendAt = now;
