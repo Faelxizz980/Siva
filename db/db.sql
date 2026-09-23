@@ -26,6 +26,8 @@ CREATE TABLE usuario (
     FOREIGN KEY (empresa_id) REFERENCES empresa(id)
 );
 
+
+
 -- ============================================================
 -- SETOR (produção, resfriamento, limpeza etc.)
 -- ============================================================
