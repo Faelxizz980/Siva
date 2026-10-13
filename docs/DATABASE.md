@@ -6,7 +6,7 @@ Fonte da verdade: [`db/db.sql`](../db/db.sql) (DDL "de mão", pensado primeiro) 
 
 ```mermaid
 erDiagram
-    EMPRESA ||--o{ USUARIO : "possui (exceto super_admin)"
+    EMPRESA ||--o{ USUARIO : "possui (exceto ADMIN)"
     EMPRESA ||--o{ SETOR : "possui"
     SETOR ||--o{ ATIVO : "possui"
     SETOR ||--o{ ESP32 : "possui"
@@ -27,8 +27,10 @@ erDiagram
         varchar100 nome
         varchar100 email UK
         varchar255 senha "bcrypt hash"
-        enum tipo "super_admin | admin_empresa | funcionario"
-        int empresa_id FK "NULL só p/ super_admin"
+        enum tipo "ADMIN | GESTOR | TECNICO"
+        enum especialidade "MECANICO | ELETRICISTA, nullable (obrigatória p/ TECNICO)"
+        enum status "ATIVO | INATIVO, default ATIVO"
+        int empresa_id FK "NULL só p/ ADMIN"
         datetime criado_em
     }
     SETOR {
@@ -120,8 +122,10 @@ Todo isolamento entre clientes (multi-tenant) deriva desta hierarquia: um recurs
 | `nome` | `VARCHAR(100)` | `NOT NULL` |
 | `email` | `VARCHAR(100)` | `UNIQUE`, `NOT NULL` |
 | `senha` | `VARCHAR(255)` | `NOT NULL` — hash bcrypt, nunca a senha em claro |
-| `tipo` | `ENUM('super_admin','admin_empresa','funcionario')` | `NOT NULL` |
-| `empresa_id` | `INT` | FK → `empresa.id`, `NULL` **apenas** para `super_admin` |
+| `tipo` | `ENUM('ADMIN','GESTOR','TECNICO')` | `NOT NULL` |
+| `especialidade` | `ENUM('MECANICO','ELETRICISTA')` | nullable — obrigatória p/ `TECNICO`, proibida p/ demais |
+| `status` | `ENUM('ATIVO','INATIVO')` | `NOT NULL`, default `ATIVO` — `INATIVO` bloqueia login |
+| `empresa_id` | `INT` | FK → `empresa.id`, `NULL` **apenas** para `ADMIN` |
 | `criado_em` | `DATETIME` | default `CURRENT_TIMESTAMP` |
 
 ### `setor`

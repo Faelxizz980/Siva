@@ -7,6 +7,7 @@ import {
   listUsersQuerySchema,
   updateUserSchema,
   userIdParamSchema,
+  userStatusSchema,
 } from '../validators/user.validators.js';
 
 export const userRoutes = Router();
@@ -15,31 +16,38 @@ userRoutes.use(authenticateUser);
 
 userRoutes.get(
   '/',
-  authorize('super_admin', 'admin_empresa'),
+  authorize('ADMIN', 'GESTOR'),
   validate({ query: listUsersQuerySchema }),
   userController.list,
 );
 userRoutes.get(
   '/:id',
-  authorize('super_admin', 'admin_empresa'),
+  authorize('ADMIN', 'GESTOR'),
   validate({ params: userIdParamSchema }),
   userController.getById,
 );
+// Somente ADMIN cria / edita / altera status / exclui.
 userRoutes.post(
   '/',
-  authorize('super_admin', 'admin_empresa'),
+  authorize('ADMIN'),
   validate({ body: createUserSchema }),
   userController.create,
 );
 userRoutes.patch(
   '/:id',
-  authorize('super_admin', 'admin_empresa'),
+  authorize('ADMIN'),
   validate({ params: userIdParamSchema, body: updateUserSchema }),
   userController.update,
 );
+userRoutes.patch(
+  '/:id/status',
+  authorize('ADMIN'),
+  validate({ params: userIdParamSchema, body: userStatusSchema }),
+  userController.setStatus,
+);
 userRoutes.delete(
   '/:id',
-  authorize('super_admin'),
+  authorize('ADMIN'),
   validate({ params: userIdParamSchema }),
   userController.remove,
 );

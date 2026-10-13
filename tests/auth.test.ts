@@ -46,7 +46,7 @@ describe('acesso a recursos autenticados', () => {
     expect(response.status).toBe(401);
   });
 
-  it('lista apenas a própria empresa para um admin_empresa', async () => {
+  it('lista apenas a própria empresa para um GESTOR', async () => {
     const response = await request(app)
       .get('/api/companies')
       .set('Authorization', `Bearer ${token}`);

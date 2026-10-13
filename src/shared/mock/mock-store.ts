@@ -38,7 +38,9 @@ function seed(): void {
     nome: 'Administrador SIVA',
     email: 'super@siva.com',
     senha: passwordHash,
-    tipo: 'super_admin',
+    tipo: 'ADMIN',
+    especialidade: null,
+    status: 'ATIVO',
     empresaId: null,
     criadoEm: hoursAgo(720),
   });
@@ -46,7 +48,9 @@ function seed(): void {
     nome: 'Carla Mendes',
     email: 'carla.mendes@aquaplas.com',
     senha: passwordHash,
-    tipo: 'admin_empresa',
+    tipo: 'GESTOR',
+    especialidade: null,
+    status: 'ATIVO',
     empresaId: aquaplas.id,
     criadoEm: hoursAgo(700),
   });
@@ -54,7 +58,9 @@ function seed(): void {
     nome: 'Diego Ramos',
     email: 'diego.ramos@aquaplas.com',
     senha: passwordHash,
-    tipo: 'funcionario',
+    tipo: 'TECNICO',
+    especialidade: 'MECANICO',
+    status: 'ATIVO',
     empresaId: aquaplas.id,
     criadoEm: hoursAgo(650),
   });
@@ -62,7 +68,9 @@ function seed(): void {
     nome: 'Beatriz Nogueira',
     email: 'beatriz.nogueira@metaltec.com',
     senha: passwordHash,
-    tipo: 'admin_empresa',
+    tipo: 'GESTOR',
+    especialidade: null,
+    status: 'ATIVO',
     empresaId: metaltec.id,
     criadoEm: hoursAgo(470),
   });

@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { env } from '../../../config/env.js';
-import { UnauthorizedError } from '../../../shared/errors/app-error.js';
+import { ForbiddenError, UnauthorizedError } from '../../../shared/errors/app-error.js';
 import { createUserRepository } from '../../users/repositories/user.repository.js';
 import { toPublicUser } from '../../users/entities/user.entity.js';
 import type { AuthenticatedUser } from '../../../types/express.js';
@@ -16,6 +16,10 @@ export const authService = {
 
     const senhaValida = await bcrypt.compare(data.senha, user.senha);
     if (!senhaValida) throw new UnauthorizedError('E-mail ou senha inválidos.');
+
+    if (user.status === 'INATIVO') {
+      throw new ForbiddenError('Usuário inativo. Entre em contato com o administrador.');
+    }
 
     const payload: AuthenticatedUser = {
       id: user.id,
@@ -33,6 +37,9 @@ export const authService = {
   async me(actor: AuthenticatedUser) {
     const user = await userRepository.findById(actor.id);
     if (!user) throw new UnauthorizedError();
+    if (user.status === 'INATIVO') {
+      throw new ForbiddenError('Usuário inativo. Entre em contato com o administrador.');
+    }
     return toPublicUser(user);
   },
 };

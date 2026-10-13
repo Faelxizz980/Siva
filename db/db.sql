@@ -20,8 +20,10 @@ CREATE TABLE usuario (
     nome VARCHAR(100) NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
     senha VARCHAR(255) NOT NULL,
-    tipo ENUM('super_admin', 'admin_empresa', 'funcionario') NOT NULL,
-    empresa_id INT NULL,              -- NULL apenas para super_admin
+    tipo ENUM('ADMIN', 'GESTOR', 'TECNICO') NOT NULL,
+    especialidade ENUM('MECANICO', 'ELETRICISTA') NULL, -- obrigatória apenas para TECNICO
+    status ENUM('ATIVO', 'INATIVO') NOT NULL DEFAULT 'ATIVO',
+    empresa_id INT NULL,              -- NULL apenas para ADMIN
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (empresa_id) REFERENCES empresa(id)
 );

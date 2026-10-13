@@ -1,10 +1,14 @@
 import 'express';
 import type { Logger } from 'pino';
 
+export type UserRole = 'ADMIN' | 'GESTOR' | 'TECNICO';
+export type Especialidade = 'MECANICO' | 'ELETRICISTA';
+export type StatusUsuario = 'ATIVO' | 'INATIVO';
+
 export interface AuthenticatedUser {
   id: number;
   email: string;
-  tipo: 'super_admin' | 'admin_empresa' | 'funcionario';
+  tipo: UserRole;
   empresaId: number | null;
 }
 

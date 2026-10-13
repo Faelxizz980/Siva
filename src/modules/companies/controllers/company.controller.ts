@@ -16,6 +16,20 @@ export const companyController = {
     ok(res, company);
   }),
 
+  details: asyncHandler(async (req: Request, res: Response) => {
+    const details = await companyService.details(req.user!, Number(req.params.id));
+    ok(res, details);
+  }),
+
+  users: asyncHandler(async (req: Request, res: Response) => {
+    const { page, pageSize } = parsePagination(req);
+    const { items, total } = await companyService.usersByCompany(req.user!, Number(req.params.id), {
+      page,
+      pageSize,
+    });
+    paginated(res, items, { total, page, pageSize });
+  }),
+
   create: asyncHandler(async (req: Request, res: Response) => {
     const company = await companyService.create(req.body);
     created(res, company);

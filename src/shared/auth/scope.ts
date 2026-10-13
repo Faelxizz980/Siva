@@ -1,11 +1,14 @@
 import { ForbiddenError } from '../errors/app-error.js';
 import type { AuthenticatedUser } from '../../types/express.js';
 
-export function isSuperAdmin(user: AuthenticatedUser): boolean {
-  return user.tipo === 'super_admin';
+export function isAdmin(user: AuthenticatedUser): boolean {
+  return user.tipo === 'ADMIN';
 }
 
-/** Garante que o usuário só acesse dados da própria empresa (super_admin vê tudo). */
+/** Alias mantido para compatibilidade interna durante a migração. */
+export const isSuperAdmin = isAdmin;
+
+/** Garante que o usuário só acesse dados da própria empresa (ADMIN vê tudo). */
 export function assertSameCompany(user: AuthenticatedUser, empresaId: number | null): void {
   if (isSuperAdmin(user)) return;
   if (user.empresaId === null || user.empresaId !== empresaId) {

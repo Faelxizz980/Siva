@@ -17,19 +17,19 @@ deviceRoutes.get('/', validate({ query: listDevicesQuerySchema }), deviceControl
 deviceRoutes.get('/:id', validate({ params: deviceIdParamSchema }), deviceController.getById);
 deviceRoutes.post(
   '/',
-  authorize('super_admin', 'admin_empresa'),
+  authorize('ADMIN', 'GESTOR'),
   validate({ body: createDeviceSchema }),
   deviceController.create,
 );
 deviceRoutes.patch(
   '/:id',
-  authorize('super_admin', 'admin_empresa'),
+  authorize('ADMIN', 'GESTOR'),
   validate({ params: deviceIdParamSchema, body: updateDeviceSchema }),
   deviceController.update,
 );
 deviceRoutes.delete(
   '/:id',
-  authorize('super_admin', 'admin_empresa'),
+  authorize('ADMIN', 'GESTOR'),
   validate({ params: deviceIdParamSchema }),
   deviceController.remove,
 );

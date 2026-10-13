@@ -17,5 +17,6 @@ export function paginated<T>(
   data: T[],
   meta: { total: number; page: number; pageSize: number },
 ): Response {
-  return res.status(200).json({ success: true, data, meta });
+  const totalPages = Math.max(1, Math.ceil(meta.total / Math.max(1, meta.pageSize)));
+  return res.status(200).json({ success: true, data, meta: { ...meta, totalPages } });
 }

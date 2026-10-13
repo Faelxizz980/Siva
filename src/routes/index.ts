@@ -10,6 +10,7 @@ import { sensorRoutes } from '../modules/sensors/routes/sensor.routes.js';
 import { readingRoutes } from '../modules/readings/routes/reading.routes.js';
 import { maintenanceRoutes } from '../modules/maintenances/routes/maintenance.routes.js';
 import { alertRoutes } from '../modules/alerts/routes/alert.routes.js';
+import { dashboardRoutes } from '../modules/dashboard/routes/dashboard.routes.js';
 
 export const apiRoutes = Router();
 
@@ -27,3 +28,4 @@ apiRoutes.use('/sensors', sensorRoutes);
 apiRoutes.use('/readings', readingRoutes);
 apiRoutes.use('/maintenances', maintenanceRoutes);
 apiRoutes.use('/alerts', alertRoutes);
+apiRoutes.use('/dashboard', dashboardRoutes);

@@ -30,28 +30,28 @@ sequenceDiagram
 - O token é assinado com `HS256` (padrão da lib `jsonwebtoken`), segredo em `JWT_SECRET`, validade em `JWT_EXPIRES_IN` (default `8h`).
 - **Payload do JWT** (visível — JWT não é criptografado, só assinado; nunca coloque dado sensível aqui):
   ```json
-  { "id": 2, "email": "carla.mendes@aquaplas.com", "tipo": "admin_empresa", "empresaId": 1, "iat": ..., "exp": ... }
+  { "id": 2, "email": "carla.mendes@aquaplas.com", "tipo": "GESTOR", "empresaId": 1, "iat": ..., "exp": ... }
   ```
 - `authenticateUser` (em [`auth.middleware.ts`](../src/middlewares/auth.middleware.ts)) lê o header `Authorization`, exige o prefixo `Bearer `, valida a assinatura e a expiração, e popula `req.user` com o payload decodificado. Qualquer falha vira `401 UNAUTHORIZED` — a mensagem não distingue "token expirado" de "token inválido" de propósito (não dar pista de qual seria o próximo passo de um ataque).
 - Não há armazenamento de sessão no servidor: é um JWT stateless clássico. Consequência direta: **não existe logout no backend** (o cliente simplesmente descarta o token) e **não existe revogação de token antes da expiração** — ver limitação em [SECURITY.md](./SECURITY.md#tokens-jwt-sem-revogação).
 
 ## Autorização por papel (roles)
 
-Três papéis, definidos na coluna `usuario.tipo`:
+Três papéis, definidos na coluna `usuario.tipo`, com status `ATIVO|INATIVO` (inativo não faz login — `403 FORBIDDEN` — e é barrado em recursos protegidos):
 
 | Papel | Escopo | O que só ele pode fazer |
 | --- | --- | --- |
-| `super_admin` | todas as empresas (`empresaId = NULL`) | CRUD de empresas; criar outro `super_admin`; deletar qualquer usuário |
-| `admin_empresa` | só a própria empresa | CRUD de setores/ativos/ESP32s/sensores da empresa; criar `funcionario`/`admin_empresa` na própria empresa |
-| `funcionario` | só a própria empresa, leitura + manutenções | ver dados, abrir/atualizar chamados de manutenção |
+| `ADMIN` | todas as empresas (`empresaId = NULL`, sem especialidade) | CRUD de empresas; criar `ADMIN`/`GESTOR`/`TECNICO`; editar qualquer usuário; ativar/inativar; deletar usuário; dashboard admin |
+| `GESTOR` | só a própria empresa (`empresaId` obrigatório, sem especialidade) | CRUD de setores/ativos/ESP32s/sensores da empresa; leitura de usuários da própria empresa |
+| `TECNICO` | só a própria empresa + especialidade `MECANICO\|ELETRICISTA` obrigatória | ver dados, abrir/atualizar chamados de manutenção |
 
 Aplicado em duas camadas, sempre nessa ordem:
 
-1. **`authorize(...papéis)`** (middleware, por rota) — checagem grosseira, antes de tocar em qualquer dado: "esse papel pode nem tentar chegar aqui". Ex.: `sectorRoutes.post('/', authorize('super_admin', 'admin_empresa'), ...)`.
-2. **`assertSameCompany(user, recurso.empresaId)`** (dentro do service, depois de já ter buscado o recurso) — checagem fina: "mesmo sendo `admin_empresa`, isso é da empresa desse usuário?". Está em [`shared/auth/scope.ts`](../src/shared/auth/scope.ts):
+1. **`authorize(...papéis)`** (middleware, por rota) — checagem grosseira, antes de tocar em qualquer dado: "esse papel pode nem tentar chegar aqui". Ex.: `sectorRoutes.post('/', authorize('ADMIN', 'GESTOR'), ...)`.
+2. **`assertSameCompany(user, recurso.empresaId)`** (dentro do service, depois de já ter buscado o recurso) — checagem fina: "mesmo sendo `GESTOR`, isso é da empresa desse usuário?". Está em [`shared/auth/scope.ts`](../src/shared/auth/scope.ts):
    ```ts
    export function assertSameCompany(user: AuthenticatedUser, empresaId: number | null): void {
-     if (isSuperAdmin(user)) return;
+     if (isAdmin(user)) return;
      if (user.empresaId === null || user.empresaId !== empresaId) {
        throw new ForbiddenError('Você não tem acesso aos dados desta empresa.');
      }
@@ -82,6 +82,6 @@ sequenceDiagram
 
 ## Registro e troca de senha
 
-- Não existe endpoint de **auto-registro**: usuários só são criados por um `admin_empresa`/`super_admin` via `POST /api/users` (ver regras em [BUSINESS_FLOWS.md](./BUSINESS_FLOWS.md#usuário)).
-- Não existe fluxo de "esqueci minha senha" (envio de e-mail, token de reset). A única forma de trocar senha hoje é `PATCH /api/users/:id` com a senha atual conhecida.
+- Não existe endpoint de **auto-registro**: usuários só são criados por um `ADMIN` via `POST /api/users` (ver regras em [BUSINESS_FLOWS.md](./BUSINESS_FLOWS.md#usuário)).
+- Não existe fluxo de "esqueci minha senha" (envio de e-mail, token de reset). A única forma de trocar senha hoje é `PATCH /api/users/:id` (somente ADMIN) enviando o campo `senha`.
 - 🚧 **Não implementado nesta etapa**: recuperação de senha por e-mail, MFA/2FA, refresh token (o cliente reloga quando o JWT expira).

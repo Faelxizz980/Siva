@@ -17,19 +17,19 @@ assetRoutes.get('/', validate({ query: listAssetsQuerySchema }), assetController
 assetRoutes.get('/:id', validate({ params: assetIdParamSchema }), assetController.getById);
 assetRoutes.post(
   '/',
-  authorize('super_admin', 'admin_empresa'),
+  authorize('ADMIN', 'GESTOR'),
   validate({ body: createAssetSchema }),
   assetController.create,
 );
 assetRoutes.patch(
   '/:id',
-  authorize('super_admin', 'admin_empresa'),
+  authorize('ADMIN', 'GESTOR'),
   validate({ params: assetIdParamSchema, body: updateAssetSchema }),
   assetController.update,
 );
 assetRoutes.delete(
   '/:id',
-  authorize('super_admin', 'admin_empresa'),
+  authorize('ADMIN', 'GESTOR'),
   validate({ params: assetIdParamSchema }),
   assetController.remove,
 );

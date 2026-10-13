@@ -13,24 +13,59 @@ async function main(): Promise<void> {
   });
 
   await prisma.usuario.upsert({
+    where: { email: 'admin@siva.local' },
+    update: {},
+    create: {
+      nome: 'Administrador SIVA',
+      email: 'admin@siva.local',
+      senha: senhaHash,
+      tipo: 'ADMIN',
+      especialidade: null,
+      status: 'ATIVO',
+      empresaId: null,
+    },
+  });
+
+  // Compatibilidade com o seed anterior.
+  await prisma.usuario.upsert({
     where: { email: 'super@siva.com' },
     update: {},
     create: {
       nome: 'Administrador SIVA',
       email: 'super@siva.com',
       senha: senhaHash,
-      tipo: 'super_admin',
+      tipo: 'ADMIN',
+      especialidade: null,
+      status: 'ATIVO',
+      empresaId: null,
     },
   });
 
-  await prisma.usuario.upsert({
+  const gestor = await prisma.usuario.upsert({
     where: { email: 'carla.mendes@aquaplas.com' },
     update: {},
     create: {
       nome: 'Carla Mendes',
       email: 'carla.mendes@aquaplas.com',
       senha: senhaHash,
-      tipo: 'admin_empresa',
+      tipo: 'GESTOR',
+      especialidade: null,
+      status: 'ATIVO',
+      empresaId: empresa.id,
+    },
+  });
+  void gestor;
+
+  const tecnico = await prisma.usuario.upsert({
+    where: { email: 'diego.ramos@aquaplas.com' },
+    update: {},
+    create: {
+      nome: 'Diego Ramos',
+      email: 'diego.ramos@aquaplas.com',
+      senha: senhaHash,
+      tipo: 'TECNICO',
+      especialidade: 'MECANICO',
+      status: 'ATIVO',
       empresaId: empresa.id,
     },
   });
@@ -58,10 +93,21 @@ async function main(): Promise<void> {
     create: { setorId: setor.id, nome: 'Tanque de ETA 01', tag: 'AT-PRD-001', criticidade: 'alta' },
   });
 
-  await prisma.sensor.upsert({
+  const sensor = await prisma.sensor.upsert({
     where: { esp32Id_sensorId: { esp32Id: esp32.id, sensorId: 'sensor_01' } },
     update: {},
     create: { ativoId: ativo.id, esp32Id: esp32.id, sensorId: 'sensor_01', tag: 'SN-PRD-001' },
+  });
+
+  await prisma.manutencao.upsert({
+    where: { id: 1 },
+    update: {},
+    create: {
+      sensorId: sensor.id,
+      tipo: 'preventiva',
+      descricao: 'Calibração inicial do sensor.',
+      funcionarioId: tecnico.id,
+    },
   });
 
   console.log('Seed concluído.');

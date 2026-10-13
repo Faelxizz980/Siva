@@ -12,8 +12,9 @@ Este documento complementa a documentação interativa: com o servidor rodando, 
   `meta` só aparece em listagens paginadas. Erros usam `success: false` — ver [ERROR_HANDLING.md](./ERROR_HANDLING.md).
 - **Paginação** — listagens aceitam `?page=1&pageSize=20` (`pageSize` máximo 100) e devolvem:
   ```json
-  { "success": true, "data": [ ], "meta": { "total": 42, "page": 1, "pageSize": 20 } }
+  { "success": true, "data": [ ], "meta": { "total": 42, "page": 1, "pageSize": 20, "totalPages": 3 } }
   ```
+- **Tipos de usuário** — `ADMIN` (global, sem empresa) · `GESTOR` (empresa obrigatória, sem especialidade) · `TECNICO` (empresa + especialidade `MECANICO|ELETRICISTA` obrigatórias). Status `ATIVO|INATIVO` (inativo não faz login).
 - **Autenticação** — duas formas, nunca misturadas na mesma rota (ver [AUTHENTICATION.md](./AUTHENTICATION.md) para o fluxo completo):
   - `Authorization: Bearer <jwt>` — usuários do dashboard.
   - `X-Token: <token-do-dispositivo>` — só usado por `POST /api/readings` (o firmware do ESP32).
@@ -26,36 +27,40 @@ Este documento complementa a documentação interativa: com o servidor rodando, 
 | `GET` | `/api/health` | — | — | Healthcheck (status, modo mock, ambiente) |
 | `POST` | `/api/auth/login` | — | — | Login por e-mail/senha, devolve JWT |
 | `GET` | `/api/auth/me` | Bearer | — | Dados do usuário autenticado |
-| `GET` | `/api/companies` | Bearer | — | Lista empresas (escopado à própria, exceto super_admin) |
+| `GET` | `/api/companies` | Bearer | — | Lista empresas (todas p/ ADMIN; só a própria p/ demais) |
 | `GET` | `/api/companies/:id` | Bearer | — | Detalhe de uma empresa |
-| `POST` | `/api/companies` | Bearer | `super_admin` | Cria empresa |
-| `PATCH` | `/api/companies/:id` | Bearer | `super_admin` | Edita empresa |
-| `DELETE` | `/api/companies/:id` | Bearer | `super_admin` | Remove empresa |
-| `GET` | `/api/users` | Bearer | `super_admin`, `admin_empresa` | Lista usuários (`?empresaId=`) |
-| `GET` | `/api/users/:id` | Bearer | `super_admin`, `admin_empresa` | Detalhe de um usuário |
-| `POST` | `/api/users` | Bearer | `super_admin`, `admin_empresa` | Cria usuário |
-| `PATCH` | `/api/users/:id` | Bearer | `super_admin`, `admin_empresa` | Edita usuário (nome/senha) |
-| `DELETE` | `/api/users/:id` | Bearer | `super_admin` | Remove usuário |
+| `GET` | `/api/companies/:id/details` | Bearer | `ADMIN` | Agregado: empresa + funcionários + setores + resumo |
+| `GET` | `/api/companies/:id/users` | Bearer | `ADMIN` | Funcionários de uma empresa (sem senha) |
+| `POST` | `/api/companies` | Bearer | `ADMIN` | Cria empresa |
+| `PATCH` | `/api/companies/:id` | Bearer | `ADMIN` | Edita empresa |
+| `DELETE` | `/api/companies/:id` | Bearer | `ADMIN` | Remove empresa (409 se houver vínculos) |
+| `GET` | `/api/users` | Bearer | `ADMIN`, `GESTOR` | Lista usuários (`?empresaId=&tipo=&status=`; GESTOR só vê a própria empresa) |
+| `GET` | `/api/users/:id` | Bearer | `ADMIN`, `GESTOR` | Detalhe de um usuário |
+| `POST` | `/api/users` | Bearer | `ADMIN` | Cria usuário (sem auto-registro público) |
+| `PATCH` | `/api/users/:id` | Bearer | `ADMIN` | Edita usuário (nome/email/tipo/empresa/especialidade/senha) |
+| `PATCH` | `/api/users/:id/status` | Bearer | `ADMIN` | Ativa/inativa (`{"status":"ATIVO"\|"INATIVO"}`) |
+| `DELETE` | `/api/users/:id` | Bearer | `ADMIN` | Remove usuário (409 se houver histórico) |
+| `GET` | `/api/dashboard/admin-summary` | Bearer | `ADMIN` | Contadores reais (empresas, funcionários, sensores, ESP32) |
 | `GET` | `/api/sectors` | Bearer | — | Lista setores (`?empresaId=`) |
 | `GET` | `/api/sectors/:id` | Bearer | — | Detalhe de um setor |
-| `POST` | `/api/sectors` | Bearer | `super_admin`, `admin_empresa` | Cria setor |
-| `PATCH` | `/api/sectors/:id` | Bearer | `super_admin`, `admin_empresa` | Edita setor |
-| `DELETE` | `/api/sectors/:id` | Bearer | `super_admin`, `admin_empresa` | Remove setor |
+| `POST` | `/api/sectors` | Bearer | `ADMIN`, `GESTOR` | Cria setor |
+| `PATCH` | `/api/sectors/:id` | Bearer | `ADMIN`, `GESTOR` | Edita setor |
+| `DELETE` | `/api/sectors/:id` | Bearer | `ADMIN`, `GESTOR` | Remove setor |
 | `GET` | `/api/assets` | Bearer | — | Lista ativos (`?setorId=`, obrigatório) |
 | `GET` | `/api/assets/:id` | Bearer | — | Detalhe de um ativo |
-| `POST` | `/api/assets` | Bearer | `super_admin`, `admin_empresa` | Cria ativo |
-| `PATCH` | `/api/assets/:id` | Bearer | `super_admin`, `admin_empresa` | Edita ativo |
-| `DELETE` | `/api/assets/:id` | Bearer | `super_admin`, `admin_empresa` | Remove ativo |
+| `POST` | `/api/assets` | Bearer | `ADMIN`, `GESTOR` | Cria ativo |
+| `PATCH` | `/api/assets/:id` | Bearer | `ADMIN`, `GESTOR` | Edita ativo |
+| `DELETE` | `/api/assets/:id` | Bearer | `ADMIN`, `GESTOR` | Remove ativo |
 | `GET` | `/api/devices` | Bearer | — | Lista ESP32s (`?setorId=`, obrigatório; token nunca aparece) |
 | `GET` | `/api/devices/:id` | Bearer | — | Detalhe de um ESP32 (sem o token) |
-| `POST` | `/api/devices` | Bearer | `super_admin`, `admin_empresa` | Cria ESP32 — **token aparece só nesta resposta** |
-| `PATCH` | `/api/devices/:id` | Bearer | `super_admin`, `admin_empresa` | Edita descrição do ESP32 |
-| `DELETE` | `/api/devices/:id` | Bearer | `super_admin`, `admin_empresa` | Remove ESP32 |
+| `POST` | `/api/devices` | Bearer | `ADMIN`, `GESTOR` | Cria ESP32 — **token aparece só nesta resposta** |
+| `PATCH` | `/api/devices/:id` | Bearer | `ADMIN`, `GESTOR` | Edita descrição do ESP32 |
+| `DELETE` | `/api/devices/:id` | Bearer | `ADMIN`, `GESTOR` | Remove ESP32 |
 | `GET` | `/api/sensors` | Bearer | — | Lista sensores (`?esp32Id=` e/ou `?ativoId=`) |
 | `GET` | `/api/sensors/:id` | Bearer | — | Detalhe de um sensor |
-| `POST` | `/api/sensors` | Bearer | `super_admin`, `admin_empresa` | Cria sensor (ativo + esp32 do mesmo setor) |
-| `PATCH` | `/api/sensors/:id` | Bearer | `super_admin`, `admin_empresa` | Edita sensor |
-| `DELETE` | `/api/sensors/:id` | Bearer | `super_admin`, `admin_empresa` | Remove sensor |
+| `POST` | `/api/sensors` | Bearer | `ADMIN`, `GESTOR` | Cria sensor (ativo + esp32 do mesmo setor) |
+| `PATCH` | `/api/sensors/:id` | Bearer | `ADMIN`, `GESTOR` | Edita sensor |
+| `DELETE` | `/api/sensors/:id` | Bearer | `ADMIN`, `GESTOR` | Remove sensor |
 | `GET` | `/api/readings` | Bearer | — | Histórico de leituras (`?sensorId=`, obrigatório) |
 | `POST` | `/api/readings` | **X-Token** | — | Ingestão de leitura pelo firmware do ESP32 |
 | `GET` | `/api/maintenances` | Bearer | — | Lista chamados (`?sensorId=`, obrigatório) |
@@ -89,7 +94,9 @@ Content-Type: application/json
       "id": 2,
       "nome": "Carla Mendes",
       "email": "carla.mendes@aquaplas.com",
-      "tipo": "admin_empresa",
+      "tipo": "GESTOR",
+      "especialidade": null,
+      "status": "ATIVO",
       "empresaId": 1,
       "criadoEm": "2026-07-08T22:16:32.630Z"
     }
@@ -97,7 +104,7 @@ Content-Type: application/json
 }
 ```
 
-Erros possíveis: `401 UNAUTHORIZED` (e-mail ou senha incorretos), `422 VALIDATION_ERROR` (payload fora do formato — `email` inválido ou `senha` ausente).
+Erros possíveis: `401 UNAUTHORIZED` (e-mail ou senha incorretos), `403 FORBIDDEN` (usuário INATIVO), `422 VALIDATION_ERROR` (payload fora do formato — `email` inválido ou `senha` ausente).
 
 ### 2. Criar um setor
 

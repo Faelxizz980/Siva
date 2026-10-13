@@ -36,16 +36,18 @@ const prismaRepository: CompanyRepository = {
   async update(id, data) {
     try {
       return await prisma.empresa.update({ where: { id: Number(id) }, data });
-    } catch {
-      return null;
+    } catch (error) {
+      if ((error as { code?: string }).code === 'P2025') return null;
+      throw error;
     }
   },
   async remove(id) {
     try {
       await prisma.empresa.delete({ where: { id: Number(id) } });
       return true;
-    } catch {
-      return false;
+    } catch (error) {
+      if ((error as { code?: string }).code === 'P2025') return false;
+      throw error;
     }
   },
 };

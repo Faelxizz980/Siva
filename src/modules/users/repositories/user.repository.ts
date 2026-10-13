@@ -18,6 +18,9 @@ function buildWhere(filter: Record<string, unknown>) {
   const where: Record<string, unknown> = {};
   if (filter.id !== undefined) where.id = Number(filter.id);
   if (filter.empresaId !== undefined) where.empresaId = Number(filter.empresaId);
+  if (filter.tipo !== undefined) where.tipo = filter.tipo;
+  if (filter.status !== undefined) where.status = filter.status;
+  if (filter.especialidade !== undefined) where.especialidade = filter.especialidade;
   return where;
 }
 
@@ -45,16 +48,18 @@ const prismaRepository: UserRepository = {
   async update(id, data) {
     try {
       return await prisma.usuario.update({ where: { id: Number(id) }, data });
-    } catch {
-      return null;
+    } catch (error) {
+      if ((error as { code?: string }).code === 'P2025') return null;
+      throw error;
     }
   },
   async remove(id) {
     try {
       await prisma.usuario.delete({ where: { id: Number(id) } });
       return true;
-    } catch {
-      return false;
+    } catch (error) {
+      if ((error as { code?: string }).code === 'P2025') return false;
+      throw error;
     }
   },
   async findByEmail(email) {

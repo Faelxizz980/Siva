@@ -1,4 +1,6 @@
-export type UserType = 'super_admin' | 'admin_empresa' | 'funcionario';
+export type UserType = 'ADMIN' | 'GESTOR' | 'TECNICO';
+export type Especialidade = 'MECANICO' | 'ELETRICISTA';
+export type StatusUsuario = 'ATIVO' | 'INATIVO';
 
 export interface User {
   id: number;
@@ -6,6 +8,8 @@ export interface User {
   email: string;
   senha: string;
   tipo: UserType;
+  especialidade: Especialidade | null;
+  status: StatusUsuario;
   empresaId: number | null;
   criadoEm: Date;
 }

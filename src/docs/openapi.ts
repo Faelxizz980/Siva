@@ -72,6 +72,7 @@ export const openApiDocument = {
     { name: 'Readings' },
     { name: 'Maintenances' },
     { name: 'Alerts' },
+    { name: 'Dashboard' },
   ],
   components: {
     securitySchemes: {
@@ -157,7 +158,9 @@ export const openApiDocument = {
           id: { type: 'integer' },
           nome: { type: 'string' },
           email: { type: 'string' },
-          tipo: { type: 'string', enum: ['super_admin', 'admin_empresa', 'funcionario'] },
+          tipo: { type: 'string', enum: ['ADMIN', 'GESTOR', 'TECNICO'] },
+          especialidade: { type: 'string', enum: ['MECANICO', 'ELETRICISTA'], nullable: true },
+          status: { type: 'string', enum: ['ATIVO', 'INATIVO'] },
           empresaId: { type: 'integer', nullable: true },
         },
       },
@@ -221,7 +224,7 @@ export const openApiDocument = {
       },
       post: {
         tags: ['Companies'],
-        summary: 'Cria uma empresa (super_admin).',
+        summary: 'Cria uma empresa (ADMIN).',
         security: [bearerAuth],
         responses: { '201': itemResponse('#/components/schemas/Company') },
       },
@@ -232,6 +235,43 @@ export const openApiDocument = {
         security: [bearerAuth],
         parameters: [idParam],
         responses: { '200': itemResponse('#/components/schemas/Company') },
+      },
+    },
+    '/companies/{id}/details': {
+      get: {
+        tags: ['Companies'],
+        summary:
+          'Detalhes agregados da empresa (empresa, funcionários, setores, resumo). Somente ADMIN.',
+        security: [bearerAuth],
+        parameters: [idParam],
+        responses: { '200': { description: 'Detalhes da empresa.' } },
+      },
+    },
+    '/companies/{id}/users': {
+      get: {
+        tags: ['Companies'],
+        summary: 'Funcionários de uma empresa. Somente ADMIN.',
+        security: [bearerAuth],
+        parameters: [idParam, ...paginationParams],
+        responses: { '200': paginatedResponse('#/components/schemas/User') },
+      },
+    },
+    '/users/{id}/status': {
+      patch: {
+        tags: ['Users'],
+        summary: 'Ativa/inativa um usuário ({status: ATIVO|INATIVO}). Somente ADMIN.',
+        security: [bearerAuth],
+        parameters: [idParam],
+        responses: { '200': itemResponse('#/components/schemas/User') },
+      },
+    },
+    '/dashboard/admin-summary': {
+      get: {
+        tags: ['Dashboard'],
+        summary:
+          'Contadores administrativos reais (empresas, funcionários, sensores, ESP32). Somente ADMIN.',
+        security: [bearerAuth],
+        responses: { '200': { description: 'Resumo administrativo.' } },
       },
     },
     '/sectors': {

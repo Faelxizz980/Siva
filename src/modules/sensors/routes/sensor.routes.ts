@@ -17,19 +17,19 @@ sensorRoutes.get('/', validate({ query: listSensorsQuerySchema }), sensorControl
 sensorRoutes.get('/:id', validate({ params: sensorIdParamSchema }), sensorController.getById);
 sensorRoutes.post(
   '/',
-  authorize('super_admin', 'admin_empresa'),
+  authorize('ADMIN', 'GESTOR'),
   validate({ body: createSensorSchema }),
   sensorController.create,
 );
 sensorRoutes.patch(
   '/:id',
-  authorize('super_admin', 'admin_empresa'),
+  authorize('ADMIN', 'GESTOR'),
   validate({ params: sensorIdParamSchema, body: updateSensorSchema }),
   sensorController.update,
 );
 sensorRoutes.delete(
   '/:id',
-  authorize('super_admin', 'admin_empresa'),
+  authorize('ADMIN', 'GESTOR'),
   validate({ params: sensorIdParamSchema }),
   sensorController.remove,
 );

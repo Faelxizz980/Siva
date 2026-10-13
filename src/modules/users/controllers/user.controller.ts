@@ -8,12 +8,11 @@ import { userService } from '../services/user.service.js';
 export const userController = {
   list: asyncHandler(async (req: Request, res: Response) => {
     const { page, pageSize } = parsePagination(req);
-    const empresaId = req.query.empresaId ? Number(req.query.empresaId) : undefined;
-    const { items, total } = await userService.list(req.user!, {
-      page,
-      pageSize,
-      filter: { empresaId },
-    });
+    const filter: Record<string, unknown> = {};
+    if (req.query.empresaId !== undefined) filter.empresaId = Number(req.query.empresaId);
+    if (req.query.tipo !== undefined) filter.tipo = String(req.query.tipo);
+    if (req.query.status !== undefined) filter.status = String(req.query.status);
+    const { items, total } = await userService.list(req.user!, { page, pageSize, filter });
     paginated(res, items, { total, page, pageSize });
   }),
 
@@ -29,6 +28,11 @@ export const userController = {
 
   update: asyncHandler(async (req: Request, res: Response) => {
     const user = await userService.update(req.user!, Number(req.params.id), req.body);
+    ok(res, user);
+  }),
+
+  setStatus: asyncHandler(async (req: Request, res: Response) => {
+    const user = await userService.setStatus(req.user!, Number(req.params.id), req.body.status);
     ok(res, user);
   }),
 
