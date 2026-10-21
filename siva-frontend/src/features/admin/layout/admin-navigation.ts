@@ -1,4 +1,4 @@
-import { LayoutDashboard, Building, Radio, Users } from 'lucide-react';
+import { Activity, Building, LayoutDashboard, Users } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export interface AdminNavItem {
@@ -12,9 +12,15 @@ export interface AdminNavItem {
 
 export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   {
+    to: '/painel',
+    label: 'Painel operacional',
+    description: 'Consumo, setores, ativos e dispositivos',
+    icon: Activity,
+  },
+  {
     to: '/admin',
     label: 'Dashboard',
-    description: 'Resumo operacional da plataforma',
+    description: 'Resumo administrativo da plataforma',
     icon: LayoutDashboard,
     end: true,
   },
@@ -29,11 +35,5 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     label: 'Usuários',
     description: 'Contas de acesso e perfis',
     icon: Users,
-  },
-  {
-    to: '/admin/sensores',
-    label: 'Sensores',
-    description: 'Sensores de vazão instalados',
-    icon: Radio,
   },
 ];

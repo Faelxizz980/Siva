@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Pencil, Plus, Radio, RefreshCw, Trash2 } from 'lucide-react';
 
 import { AlertMessage } from '../../../components/ui/AlertMessage';
@@ -12,29 +12,36 @@ import { SelectField } from '../../../components/ui/FormField';
 import { LoadingBlock } from '../../../components/ui/LoadingBlock';
 import { Pagination } from '../../../components/ui/Pagination';
 import { useAsyncData } from '../../../hooks/use-async-data';
-import { companyService } from '../../../services/companies/company.service';
+import { assetService } from '../../../services/assets/asset.service';
+import { deviceService } from '../../../services/devices/device.service';
+import { sectorService } from '../../../services/sectors/sector.service';
 import { sensorService } from '../../../services/sensors/sensor.service';
+import type { Asset } from '../../../types/asset';
+import type { Device } from '../../../types/device';
+import type { Sector } from '../../../types/sector';
 import type { Sensor } from '../../../types/sensor';
 import { formatDate } from '../../../utils/format';
 import { useAuthenticatedSession } from '../../auth/hooks/use-authenticated-session';
-import { AdminTopbar } from '../layout/AdminTopbar';
-import { useAdminLayout } from '../layout/admin-layout-context';
+import { PanelTopbar } from '../layout/PanelTopbar';
+import { usePanelLayout } from '../layout/panel-layout-context';
+import { usePanelScope } from '../hooks/use-panel-scope';
+import { usePermissions } from '../hooks/use-permissions';
 import { SensorFormDialog } from './components/SensorFormDialog';
 import type { SensorSubmitPayload } from './components/SensorFormDialog';
-import { useCompanyCatalog } from './use-company-catalog';
 
 const PAGE_SIZE = 10;
 
 export default function SensorsPage() {
-  const { openMenu } = useAdminLayout();
+  const { openMenu } = usePanelLayout();
   const session = useAuthenticatedSession();
+  const { empresaId } = usePanelScope();
+  const { canWrite } = usePermissions();
 
   const [page, setPage] = useState(1);
-  const [filterEmpresaId, setFilterEmpresaId] = useState('');
   const [filterSetorId, setFilterSetorId] = useState('');
   const [filterAtivoId, setFilterAtivoId] = useState('');
   const [filterEsp32Id, setFilterEsp32Id] = useState('');
-
+  const [filterAtivoStatus, setFilterAtivoStatus] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editing, setEditing] = useState<Sensor | null>(null);
   const [sensorToDelete, setSensorToDelete] = useState<Sensor | null>(null);
@@ -42,41 +49,52 @@ export default function SensorsPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
-  const { data: companies } = useAsyncData(() => {
-    if (!session) return Promise.reject(new Error('Sessão expirada.'));
-    return companyService.list(session.token, { page: 1, pageSize: 100 });
-  }, session?.token);
+  const scopeKey = `${session?.token ?? ''}:${empresaId ?? 'todas'}`;
 
-  const { catalog } = useCompanyCatalog(
-    session?.token ?? '',
-    useMemo(
-      () => (companies?.items ?? []).map((company) => String(company.id)),
-      [companies],
-    ),
-  );
+  const { data: sectors } = useAsyncData(() => {
+    if (!session) return Promise.reject(new Error('Sessão expirada.'));
+    return sectorService.list(session.token, {
+      page: 1,
+      pageSize: 100,
+      empresaId: empresaId ?? undefined,
+    });
+  }, scopeKey);
+
+  const { data: assets } = useAsyncData(() => {
+    if (!session) return Promise.reject(new Error('Sessão expirada.'));
+    return assetService.list(session.token, {
+      page: 1,
+      pageSize: 100,
+      empresaId: empresaId ?? undefined,
+    });
+  }, scopeKey);
+
+  const { data: devices } = useAsyncData(() => {
+    if (!session) return Promise.reject(new Error('Sessão expirada.'));
+    return deviceService.list(session.token, {
+      page: 1,
+      pageSize: 100,
+      empresaId: empresaId ?? undefined,
+    });
+  }, scopeKey);
 
   const { data, isLoading, error, reload } = useAsyncData(() => {
     if (!session) return Promise.reject(new Error('Sessão expirada.'));
     return sensorService.list(session.token, {
       page,
       pageSize: PAGE_SIZE,
+      empresaId: empresaId ?? undefined,
       ativoId: filterAtivoId ? Number(filterAtivoId) : null,
       esp32Id: filterEsp32Id ? Number(filterEsp32Id) : null,
+      ativoStatus: filterAtivoStatus === '' ? null : filterAtivoStatus === 'ativo',
     });
-  }, `${session?.token ?? ''}:${page}:${filterAtivoId}:${filterEsp32Id}`);
+  }, `${scopeKey}:${page}:${filterAtivoId}:${filterEsp32Id}:${filterAtivoStatus}`);
 
   if (!session) return null;
 
-  const availableSectors = filterEmpresaId
-    ? catalog.setores.filter((sector) => sector.empresaId === Number(filterEmpresaId))
-    : catalog.setores;
-
-  const availableAssets = filterSetorId
-    ? catalog.assets.filter((asset) => asset.setorId === Number(filterSetorId))
-    : catalog.assets;
-  const availableDevices = filterSetorId
-    ? catalog.devices.filter((device) => device.setorId === Number(filterSetorId))
-    : catalog.devices;
+  const sectorById = new Map<number, Sector>((sectors?.items ?? []).map((s) => [s.id, s]));
+  const assetById = new Map<number, Asset>((assets?.items ?? []).map((a) => [a.id, a]));
+  const deviceById = new Map<number, Device>((devices?.items ?? []).map((d) => [d.id, d]));
 
   const handleSubmit = async (submit: SensorSubmitPayload): Promise<void> => {
     if (submit.mode === 'update' && editing) {
@@ -88,6 +106,27 @@ export default function SensorsPage() {
     }
     setIsFormOpen(false);
     reload();
+  };
+
+  const handleToggleStatus = async (sensor: Sensor): Promise<void> => {
+    setActionError(null);
+    try {
+      await sensorService.update(session.token, sensor.id, {
+        ativoStatus: !sensor.ativoStatus,
+      });
+      setActionSuccess(
+        `Sensor "${sensor.tag ?? sensor.sensorId}" ${
+          sensor.ativoStatus ? 'desativado' : 'ativado'
+        }.`,
+      );
+      reload();
+    } catch (toggleError: unknown) {
+      setActionError(
+        toggleError instanceof Error
+          ? toggleError.message
+          : 'Não foi possível alterar o status do sensor.',
+      );
+    }
   };
 
   const handleDelete = async (): Promise<void> => {
@@ -111,7 +150,7 @@ export default function SensorsPage() {
 
   const columns: DataTableColumn<Sensor>[] = [
     {
-      key: 'tag',
+      key: 'sensor',
       header: 'Sensor',
       render: (sensor) => (
         <div className="flex items-center gap-3">
@@ -119,28 +158,26 @@ export default function SensorsPage() {
             <Radio className="size-4" aria-hidden="true" />
           </span>
           <div className="min-w-0">
-            <p className="truncate font-semibold text-slate-900">{sensor.tag ?? `Sensor #${sensor.id}`}</p>
+            <p className="truncate font-semibold text-slate-900">
+              {sensor.tag ?? `Sensor #${sensor.id}`}
+            </p>
             <p className="truncate font-mono text-xs text-slate-500">{sensor.sensorId}</p>
           </div>
         </div>
       ),
     },
     {
-      key: 'descricao',
-      header: 'Descrição',
-      render: (sensor) => (
-        <span className="line-clamp-2 max-w-xs text-slate-600">{sensor.descricao ?? '—'}</span>
-      ),
-    },
-    {
       key: 'ativo',
-      header: 'Ativo',
+      header: 'Ativo / Setor',
       render: (sensor) => {
-        const asset = catalog.assets.find((item) => item.id === sensor.ativoId);
+        const asset = assetById.get(sensor.ativoId);
+        const sector = asset ? sectorById.get(asset.setorId) : undefined;
         return (
-          <div>
-            <p className="text-slate-700">{asset?.nome ?? `Ativo #${sensor.ativoId}`}</p>
-            {asset?.tag ? <p className="font-mono text-xs text-slate-500">{asset.tag}</p> : null}
+          <div className="min-w-0">
+            <p className="truncate text-slate-700">{asset?.nome ?? `Ativo #${sensor.ativoId}`}</p>
+            <p className="truncate text-xs text-slate-500">
+              {sector?.nome ?? `Setor #${asset?.setorId ?? '—'}`}
+            </p>
           </div>
         );
       },
@@ -149,79 +186,113 @@ export default function SensorsPage() {
       key: 'esp32',
       header: 'ESP32',
       render: (sensor) => {
-        const device = catalog.devices.find((item) => item.id === sensor.esp32Id);
-        return <span className="font-mono text-xs">{device?.espId ?? `ESP32 #${sensor.esp32Id}`}</span>;
+        const device = deviceById.get(sensor.esp32Id);
+        return (
+          <div className="min-w-0">
+            <p className="truncate font-mono text-xs text-slate-700">
+              {device?.espId ?? `ESP32 #${sensor.esp32Id}`}
+            </p>
+            <Badge tone={device?.online ? 'success' : 'warning'} className="mt-1">
+              {device?.online ? 'Online' : 'Offline'}
+            </Badge>
+          </div>
+        );
       },
     },
     {
       key: 'status',
-      header: 'Status',
+      header: 'Ativação',
       render: (sensor) => (
-        <Badge tone={sensor.ativoStatus ? 'success' : 'warning'}>
+        <Badge tone={sensor.ativoStatus ? 'success' : 'neutral'}>
           {sensor.ativoStatus ? 'Ativo' : 'Inativo'}
         </Badge>
       ),
     },
     {
       key: 'criadoEm',
-      header: 'Cadastrado em',
+      header: 'Criado em',
       render: (sensor) => <span className="text-slate-500">{formatDate(sensor.criadoEm)}</span>,
     },
     {
       key: 'acoes',
       header: 'Ações',
       align: 'right',
-      render: (sensor) => (
-        <div className="flex items-center justify-end gap-1">
-          <button
-            type="button"
-            onClick={() => {
-              setEditing(sensor);
-              setActionError(null);
-              setIsFormOpen(true);
-            }}
-            className="inline-flex size-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-siva-50 hover:text-bright-teal-blue"
-            aria-label={`Editar sensor ${sensor.tag ?? sensor.id}`}
-            title="Editar"
-          >
-            <Pencil className="size-4" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setSensorToDelete(sensor)}
-            className="inline-flex size-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600"
-            aria-label={`Excluir sensor ${sensor.tag ?? sensor.id}`}
-            title="Excluir"
-          >
-            <Trash2 className="size-4" aria-hidden="true" />
-          </button>
-        </div>
-      ),
+      render: (sensor) =>
+        canWrite ? (
+          <div className="flex items-center justify-end gap-1">
+            <button
+              type="button"
+              onClick={() => void handleToggleStatus(sensor)}
+              className="inline-flex size-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-siva-50 hover:text-bright-teal-blue"
+              aria-label={sensor.ativoStatus ? `Desativar ${sensor.tag ?? sensor.id}` : `Ativar ${sensor.tag ?? sensor.id}`}
+              title={sensor.ativoStatus ? 'Desativar' : 'Ativar'}
+            >
+              <Badge tone={sensor.ativoStatus ? 'success' : 'neutral'}>
+                {sensor.ativoStatus ? 'On' : 'Off'}
+              </Badge>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEditing(sensor);
+                setActionError(null);
+                setIsFormOpen(true);
+              }}
+              className="inline-flex size-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-siva-50 hover:text-bright-teal-blue"
+              aria-label={`Editar ${sensor.tag ?? sensor.id}`}
+              title="Editar"
+            >
+              <Pencil className="size-4" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setSensorToDelete(sensor)}
+              className="inline-flex size-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600"
+              aria-label={`Excluir ${sensor.tag ?? sensor.id}`}
+              title="Excluir"
+            >
+              <Trash2 className="size-4" aria-hidden="true" />
+            </button>
+          </div>
+        ) : null,
     },
   ];
 
+  const hasFilters =
+    filterAtivoId !== '' || filterEsp32Id !== '' || filterAtivoStatus !== '';
+
+  const availableAssets = filterSetorId
+    ? (assets?.items ?? []).filter((asset) => asset.setorId === Number(filterSetorId))
+    : (assets?.items ?? []);
+  const availableDevices = filterSetorId
+    ? (devices?.items ?? []).filter((device) => device.setorId === Number(filterSetorId))
+    : (devices?.items ?? []);
+
   return (
     <>
-      <AdminTopbar
+      <PanelTopbar
         title="Sensores"
-        description="Pontos de medição de vazão instalados"
+        description="Pontos de medição de vazão"
         onOpenMenu={openMenu}
+        showScopeSelector
         actions={
           <>
             <Button variant="outline" onClick={reload} disabled={isLoading}>
               <RefreshCw className={isLoading ? 'size-4 animate-spin' : 'size-4'} aria-hidden="true" />
               Atualizar
             </Button>
-            <Button
-              onClick={() => {
-                setEditing(null);
-                setActionError(null);
-                setIsFormOpen(true);
-              }}
-            >
-              <Plus className="size-4" aria-hidden="true" />
-              Novo sensor
-            </Button>
+            {canWrite ? (
+              <Button
+                onClick={() => {
+                  setEditing(null);
+                  setActionError(null);
+                  setIsFormOpen(true);
+                }}
+              >
+                <Plus className="size-4" aria-hidden="true" />
+                Novo sensor
+              </Button>
+            ) : null}
           </>
         }
       />
@@ -238,24 +309,6 @@ export default function SensorsPage() {
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <SelectField
-              name="filtroEmpresa"
-              label="Empresa"
-              value={filterEmpresaId}
-              onChange={(value) => {
-                setFilterEmpresaId(value);
-                setFilterSetorId('');
-                setFilterAtivoId('');
-                setFilterEsp32Id('');
-                setPage(1);
-              }}
-              placeholder="Todas as empresas"
-              options={(companies?.items ?? []).map((company) => ({
-                value: String(company.id),
-                label: company.nome,
-              }))}
-            />
-
-            <SelectField
               name="filtroSetor"
               label="Setor"
               value={filterSetorId}
@@ -265,11 +318,8 @@ export default function SensorsPage() {
                 setFilterEsp32Id('');
                 setPage(1);
               }}
-              placeholder={
-                filterEmpresaId === '' ? 'Selecione a empresa primeiro' : 'Todos os setores'
-              }
-              disabled={filterEmpresaId === ''}
-              options={availableSectors.map((sector) => ({
+              placeholder="Todos os setores"
+              options={(sectors?.items ?? []).map((sector) => ({
                 value: String(sector.id),
                 label: sector.nome,
               }))}
@@ -304,7 +354,39 @@ export default function SensorsPage() {
                 label: device.espId,
               }))}
             />
+
+            <SelectField
+              name="filtroStatus"
+              label="Ativação"
+              value={filterAtivoStatus}
+              onChange={(value) => {
+                setFilterAtivoStatus(value);
+                setPage(1);
+              }}
+              placeholder="Todos"
+              options={[
+                { value: 'ativo', label: 'Ativo' },
+                { value: 'inativo', label: 'Inativo' },
+              ]}
+            />
           </div>
+
+          {hasFilters ? (
+            <div className="mt-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setFilterAtivoId('');
+                  setFilterEsp32Id('');
+                  setFilterAtivoStatus('');
+                  setPage(1);
+                }}
+              >
+                Limpar filtros
+              </Button>
+            </div>
+          ) : null}
         </section>
 
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -320,7 +402,11 @@ export default function SensorsPage() {
                 <EmptyState
                   icon={Radio}
                   title="Nenhum sensor encontrado"
-                  description="Cadastre um sensor vinculando um ativo e um dispositivo ESP32."
+                  description={
+                    hasFilters
+                      ? 'Nenhum sensor corresponde aos filtros aplicados.'
+                      : 'Cadastre um sensor vinculando um ativo e um dispositivo ESP32 do mesmo setor.'
+                  }
                 />
               }
             />
@@ -341,8 +427,9 @@ export default function SensorsPage() {
       <SensorFormDialog
         open={isFormOpen}
         sensor={editing}
-        companies={companies?.items ?? []}
-        token={session.token}
+        sectors={sectors?.items ?? []}
+        assets={assets?.items ?? []}
+        devices={devices?.items ?? []}
         onClose={() => setIsFormOpen(false)}
         onSubmit={handleSubmit}
       />
@@ -350,7 +437,7 @@ export default function SensorsPage() {
       <ConfirmDialog
         open={sensorToDelete !== null}
         title="Excluir sensor"
-        description={`O sensor "${sensorToDelete?.tag ?? sensorToDelete?.sensorId ?? ''}" será removido permanentemente, junto com seu vínculo de medição.`}
+        description={`O sensor "${sensorToDelete?.tag ?? sensorToDelete?.sensorId ?? ''}" será removido permanentemente, junto com suas leituras e manutenções vinculadas.`}
         confirmLabel="Excluir"
         isLoading={isDeleting}
         onConfirm={() => void handleDelete()}

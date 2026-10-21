@@ -64,7 +64,7 @@ CREATE TABLE esp32 (
     id INT AUTO_INCREMENT PRIMARY KEY,
     setor_id INT NOT NULL,
     esp_id VARCHAR(50) UNIQUE NOT NULL,      -- identificador usado no payload/firmware
-    token VARCHAR(255) UNIQUE NOT NULL,      -- valor esperado no header X-Token
+    token_hash CHAR(64) UNIQUE NOT NULL,     -- SHA-256 do token (X-Token); nunca em texto plano
     descricao VARCHAR(100),
     ultimo_contato DATETIME NULL,            -- último payload recebido (online/offline)
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,

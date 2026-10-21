@@ -3,31 +3,44 @@ import type { PaginatedResult } from '../../types/api';
 import type { Asset, Device, Sector } from '../../types/catalog';
 
 /**
- * Entidades de apoio usadas para montar os seletores em cascata
+ * Entidades de apoio usadas nos seletores em cascata
  * (empresa → setor → ativo / ESP32).
  *
- * Atenção: no back-end, `GET /api/assets` e `GET /api/devices` **exigem**
- * `setorId` na query (`listAssetsQuerySchema` / `listDevicesQuerySchema`).
+ * O back-end escopa estas listagens pela empresa do usuário autenticado; o
+ * `setorId` continua disponível para filtrar dentro de um setor.
  */
 export const catalogService = {
-  sectors(token: string, empresaId: number): Promise<PaginatedResult<Sector>> {
+  sectors(token: string, empresaId?: number | null): Promise<PaginatedResult<Sector>> {
     return httpClient.getPaginated<Sector>('/sectors', {
       token,
-      query: { empresaId, pageSize: 100 },
+      query: { empresaId: empresaId ?? undefined, pageSize: 100 },
     });
   },
 
-  assets(token: string, setorId: number): Promise<PaginatedResult<Asset>> {
+  assets(token: string, params: { setorId?: number | null; empresaId?: number | null }): Promise<
+    PaginatedResult<Asset>
+  > {
     return httpClient.getPaginated<Asset>('/assets', {
       token,
-      query: { setorId, pageSize: 100 },
+      query: {
+        setorId: params.setorId ?? undefined,
+        empresaId: params.empresaId ?? undefined,
+        pageSize: 100,
+      },
     });
   },
 
-  devices(token: string, setorId: number): Promise<PaginatedResult<Device>> {
+  devices(
+    token: string,
+    params: { setorId?: number | null; empresaId?: number | null },
+  ): Promise<PaginatedResult<Device>> {
     return httpClient.getPaginated<Device>('/devices', {
       token,
-      query: { setorId, pageSize: 100 },
+      query: {
+        setorId: params.setorId ?? undefined,
+        empresaId: params.empresaId ?? undefined,
+        pageSize: 100,
+      },
     });
   },
 };

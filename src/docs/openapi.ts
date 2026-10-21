@@ -107,6 +107,10 @@ export const openApiDocument = {
           tag: { type: 'string', nullable: true },
           tipo: { type: 'string', nullable: true },
           criticidade: { type: 'string', enum: ['baixa', 'media', 'alta'] },
+          centroCusto: { type: 'string', nullable: true },
+          fotoUrl: { type: 'string', nullable: true },
+          manualUrl: { type: 'string', nullable: true },
+          descricao: { type: 'string', nullable: true },
           criadoEm: { type: 'string', format: 'date-time' },
         },
       },
@@ -118,7 +122,27 @@ export const openApiDocument = {
           espId: { type: 'string' },
           descricao: { type: 'string', nullable: true },
           ultimoContato: { type: 'string', format: 'date-time', nullable: true },
+          online: {
+            type: 'boolean',
+            description: 'Verdadeiro quando houve leitura nos últimos 10 minutos.',
+          },
           criadoEm: { type: 'string', format: 'date-time' },
+        },
+      },
+      CreatedDevice: {
+        type: 'object',
+        description:
+          'Resposta de criação. O `token` é devolvido em texto plano uma única vez — ' +
+          'o banco guarda apenas o hash SHA-256.',
+        properties: {
+          id: { type: 'integer' },
+          setorId: { type: 'integer' },
+          espId: { type: 'string' },
+          descricao: { type: 'string', nullable: true },
+          ultimoContato: { type: 'string', format: 'date-time', nullable: true },
+          online: { type: 'boolean' },
+          criadoEm: { type: 'string', format: 'date-time' },
+          token: { type: 'string' },
         },
       },
       Sensor: {
@@ -129,8 +153,87 @@ export const openApiDocument = {
           esp32Id: { type: 'integer' },
           sensorId: { type: 'string' },
           tag: { type: 'string', nullable: true },
-          ativoStatus: { type: 'boolean' },
+          descricao: { type: 'string', nullable: true },
+          ativoStatus: {
+            type: 'boolean',
+            description: 'Sensor habilitado no sistema (não confere com a comunicação do ESP32).',
+          },
           criadoEm: { type: 'string', format: 'date-time' },
+        },
+      },
+      DashboardOverview: {
+        type: 'object',
+        properties: {
+          periodo: {
+            type: 'object',
+            properties: {
+              inicio: { type: 'string', format: 'date-time' },
+              fim: { type: 'string', format: 'date-time' },
+            },
+          },
+          consumoAtual: {
+            nullable: true,
+            allOf: [
+              {
+                type: 'object',
+                properties: {
+                  valor: { type: 'number' },
+                  unidade: { type: 'string', enum: ['L/min', 'L'] },
+                  atualizadoEm: { type: 'string', format: 'date-time', nullable: true },
+                },
+              },
+            ],
+          },
+          consumoDiario: {
+            nullable: true,
+            allOf: [
+              {
+                type: 'object',
+                properties: {
+                  valor: { type: 'number' },
+                  unidade: { type: 'string', enum: ['L/min', 'L'] },
+                  atualizadoEm: { type: 'string', format: 'date-time', nullable: true },
+                },
+              },
+            ],
+          },
+          sensores: {
+            type: 'object',
+            properties: {
+              ativos: { type: 'integer' },
+              total: { type: 'integer' },
+              semLeituraNoPeriodo: { type: 'integer' },
+            },
+          },
+          alertas: {
+            type: 'object',
+            description: 'Sem fonte de dados enquanto o módulo de alertas não existir.',
+            properties: {
+              disponivel: { type: 'boolean' },
+              total: { type: 'integer', nullable: true },
+            },
+          },
+          manutencoes: {
+            type: 'object',
+            properties: { pendentes: { type: 'integer' }, total: { type: 'integer' } },
+          },
+          esp32: {
+            type: 'object',
+            properties: { online: { type: 'integer' }, total: { type: 'integer' } },
+          },
+          atividades: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                tipo: { type: 'string', enum: ['leitura', 'manutencao', 'dispositivo'] },
+                titulo: { type: 'string' },
+                descricao: { type: 'string' },
+                occurredAt: { type: 'string', format: 'date-time' },
+              },
+            },
+          },
         },
       },
       Reading: {
@@ -274,6 +377,17 @@ export const openApiDocument = {
         responses: { '200': { description: 'Resumo administrativo.' } },
       },
     },
+    '/dashboard/overview': {
+      get: {
+        tags: ['Dashboard'],
+        summary:
+          'Painel operacional: consumo, sensores, manutenções, dispositivos e atividades. ' +
+          'Escopado pela empresa do usuário; ADMIN pode filtrar por `empresaId`.',
+        security: [bearerAuth],
+        parameters: [{ name: 'empresaId', in: 'query', schema: { type: 'integer' } }],
+        responses: { '200': itemResponse('#/components/schemas/DashboardOverview') },
+      },
+    },
     '/sectors': {
       get: {
         tags: ['Sectors'],
@@ -295,17 +409,23 @@ export const openApiDocument = {
     '/assets': {
       get: {
         tags: ['Assets'],
-        summary: 'Lista ativos de um setor.',
+        summary: 'Lista ativos. Escopado pela empresa do usuário autenticado.',
         security: [bearerAuth],
         parameters: [
           ...paginationParams,
-          { name: 'setorId', in: 'query', required: true, schema: { type: 'integer' } },
+          { name: 'setorId', in: 'query', schema: { type: 'integer' } },
+          { name: 'empresaId', in: 'query', schema: { type: 'integer' } },
+          {
+            name: 'criticidade',
+            in: 'query',
+            schema: { type: 'string', enum: ['baixa', 'media', 'alta'] },
+          },
         ],
         responses: { '200': paginatedResponse('#/components/schemas/Asset') },
       },
       post: {
         tags: ['Assets'],
-        summary: 'Cria um ativo.',
+        summary: 'Cria um ativo vinculado a um setor.',
         security: [bearerAuth],
         responses: { '201': itemResponse('#/components/schemas/Asset') },
       },
@@ -313,11 +433,12 @@ export const openApiDocument = {
     '/devices': {
       get: {
         tags: ['Devices'],
-        summary: 'Lista dispositivos ESP32 de um setor.',
+        summary: 'Lista dispositivos ESP32. Escopado pela empresa do usuário autenticado.',
         security: [bearerAuth],
         parameters: [
           ...paginationParams,
-          { name: 'setorId', in: 'query', required: true, schema: { type: 'integer' } },
+          { name: 'setorId', in: 'query', schema: { type: 'integer' } },
+          { name: 'empresaId', in: 'query', schema: { type: 'integer' } },
         ],
         responses: { '200': paginatedResponse('#/components/schemas/Device') },
       },
@@ -325,18 +446,20 @@ export const openApiDocument = {
         tags: ['Devices'],
         summary: 'Cadastra um ESP32 e gera seu X-Token (exibido só na criação).',
         security: [bearerAuth],
-        responses: { '201': itemResponse('#/components/schemas/Device') },
+        responses: { '201': itemResponse('#/components/schemas/CreatedDevice') },
       },
     },
     '/sensors': {
       get: {
         tags: ['Sensors'],
-        summary: 'Lista sensores de um ESP32 ou ativo.',
+        summary: 'Lista sensores. Escopado pela empresa do usuário autenticado.',
         security: [bearerAuth],
         parameters: [
           ...paginationParams,
           { name: 'esp32Id', in: 'query', schema: { type: 'integer' } },
           { name: 'ativoId', in: 'query', schema: { type: 'integer' } },
+          { name: 'empresaId', in: 'query', schema: { type: 'integer' } },
+          { name: 'ativoStatus', in: 'query', schema: { type: 'boolean' } },
         ],
         responses: { '200': paginatedResponse('#/components/schemas/Sensor') },
       },

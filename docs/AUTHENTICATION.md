@@ -77,8 +77,13 @@ sequenceDiagram
 ```
 
 - O `token` é gerado pelo backend no momento do `POST /api/devices` (não é escolhido pelo cliente) e só aparece **naquela** resposta — ver [API.md](./API.md#3-criar-um-esp32-token-só-aparece-aqui).
+- **Armazenamento por hash (2026-10-21)**: o banco guarda apenas o SHA-256 do token
+  (`esp32.token_hash CHAR(64)`). O `authenticateDevice` calcula o hash do `X-Token` recebido e
+  busca pelo hash. O token é gerado com `randomBytes(24)` (entropia criptográfica) e o hash
+  nunca sai do back-end. Migration: `db/migrations/002_device_token_hash.sql`.
 - Não tem validade (não expira sozinho) nem escopo de permissão — um X-Token válido só serve para uma coisa: `POST /api/readings` em nome daquele ESP32 específico.
-- `authenticateDevice` não usa JWT nem qualquer verificação criptográfica de assinatura — é uma busca direta do token na tabela `esp32` (`findFirst`/`findOne` por igualdade). Isso é simples e é o modelo mais comum para credenciais fixas de dispositivo IoT, mas tem uma limitação de segurança real — ver [SECURITY.md](./SECURITY.md#credenciais-de-dispositivo-x-token).
+- `authenticateDevice` não usa JWT nem assinatura: é uma busca pelo hash do token na tabela `esp32` (`findUnique`). O hash serve de indexador único, então a comparação não é por igualdade sobre o segredo em si.
+- O estado **online/offline** de um dispositivo deriva de `esp32.ultimo_contato`, atualizado a cada leitura aceita. A janela usada pelo back-end é de 10 minutos (`DEVICE_ONLINE_WINDOW_MS`): acima disso, o dispositivo é considerado offline — estar cadastrado não significa estar online.
 
 ## Registro e troca de senha
 

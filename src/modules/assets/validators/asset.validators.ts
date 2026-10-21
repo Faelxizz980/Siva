@@ -14,14 +14,22 @@ export const createAssetSchema = z.object({
   descricao: z.string().max(255).optional().nullable(),
 });
 
-export const updateAssetSchema = createAssetSchema.partial().omit({ setorId: true });
+/**
+ * Campos editáveis de um ativo.
+ *
+ * `setorId` pode mudar, mas o service só aceita a mudança quando os ESP32 dos
+ * sensores vinculados ao ativo já estiverem no setor de destino.
+ */
+export const updateAssetSchema = createAssetSchema.partial();
 
 export const assetIdParamSchema = z.object({
   id: z.coerce.number().int().positive(),
 });
 
 export const listAssetsQuerySchema = z.object({
-  setorId: z.coerce.number().int().positive(),
+  setorId: z.coerce.number().int().positive().optional(),
+  empresaId: z.coerce.number().int().positive().optional(),
+  criticidade: assetCriticalitySchema.optional(),
   page: z.coerce.number().int().positive().optional(),
   pageSize: z.coerce.number().int().positive().optional(),
 });

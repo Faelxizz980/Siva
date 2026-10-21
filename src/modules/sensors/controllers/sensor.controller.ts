@@ -7,13 +7,14 @@ import { sensorService } from '../services/sensor.service.js';
 export const sensorController = {
   list: asyncHandler(async (req: Request, res: Response) => {
     const { page, pageSize } = parsePagination(req);
-    const esp32Id = req.query.esp32Id ? Number(req.query.esp32Id) : undefined;
-    const ativoId = req.query.ativoId ? Number(req.query.ativoId) : undefined;
-    const { items, total } = await sensorService.list(
-      req.user!,
-      { esp32Id, ativoId },
-      { page, pageSize },
-    );
+    const filter = {
+      esp32Id: req.query.esp32Id ? Number(req.query.esp32Id) : undefined,
+      ativoId: req.query.ativoId ? Number(req.query.ativoId) : undefined,
+      empresaId: req.query.empresaId ? Number(req.query.empresaId) : undefined,
+      ativoStatus:
+        req.query.ativoStatus === undefined ? undefined : req.query.ativoStatus === 'true',
+    };
+    const { items, total } = await sensorService.list(req.user!, filter, { page, pageSize });
     paginated(res, items, { total, page, pageSize });
   }),
 

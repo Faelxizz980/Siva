@@ -4,13 +4,15 @@ import { Route, Routes } from 'react-router-dom';
 import { LoadingBlock } from './components/ui/LoadingBlock';
 import { RequireAdmin } from './features/admin/guards/RequireAdmin';
 import { AdminLayout } from './features/admin/layout/AdminLayout';
+import { RequireAuthenticated } from './features/panel/guards/RequireAuthenticated';
+import { PanelLayout } from './features/panel/layout/PanelLayout';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 /**
- * A área administrativa é carregada sob demanda: as telas públicas (landing e
- * login) não precisam pagar o custo de `motion` e das tabelas administrativas.
+ * Áreas carregadas sob demanda: as telas públicas (landing e login) não
+ * precisam pagar o custo das tabelas administrativas nem das animações.
  */
 const AdminDashboardPage = lazy(() =>
   import('./features/admin/dashboard/AdminDashboardPage').then((m) => ({
@@ -26,14 +28,27 @@ const CompanyDetailPage = lazy(() =>
 const UsersPage = lazy(() =>
   import('./features/admin/users/UsersPage').then((m) => ({ default: m.default })),
 );
-const SensorsPage = lazy(() =>
-  import('./features/admin/sensors/SensorsPage').then((m) => ({ default: m.default })),
+
+const PanelDashboardPage = lazy(() =>
+  import('./features/panel/dashboard/PanelDashboardPage').then((m) => ({ default: m.default })),
+);
+const SectorsPage = lazy(() =>
+  import('./features/panel/sectors/SectorsPage').then((m) => ({ default: m.default })),
+);
+const AssetsPage = lazy(() =>
+  import('./features/panel/assets/AssetsPage').then((m) => ({ default: m.default })),
+);
+const DevicesPage = lazy(() =>
+  import('./features/panel/devices/DevicesPage').then((m) => ({ default: m.default })),
+);
+const PanelSensorsPage = lazy(() =>
+  import('./features/panel/sensors/SensorsPage').then((m) => ({ default: m.default })),
 );
 
-function AdminFallback() {
+function Fallback() {
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
-      <LoadingBlock label="Carregando painel…" minHeight="12rem" />
+      <LoadingBlock label="Carregando…" minHeight="12rem" />
     </div>
   );
 }
@@ -44,6 +59,7 @@ export default function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
 
+      {/* Área administrativa — perfil ADMIN. */}
       <Route
         path="/admin"
         element={
@@ -55,7 +71,7 @@ export default function App() {
         <Route
           index
           element={
-            <Suspense fallback={<AdminFallback />}>
+            <Suspense fallback={<Fallback />}>
               <AdminDashboardPage />
             </Suspense>
           }
@@ -63,7 +79,7 @@ export default function App() {
         <Route
           path="empresas"
           element={
-            <Suspense fallback={<AdminFallback />}>
+            <Suspense fallback={<Fallback />}>
               <CompaniesPage />
             </Suspense>
           }
@@ -71,7 +87,7 @@ export default function App() {
         <Route
           path="empresas/:id"
           element={
-            <Suspense fallback={<AdminFallback />}>
+            <Suspense fallback={<Fallback />}>
               <CompanyDetailPage />
             </Suspense>
           }
@@ -79,16 +95,59 @@ export default function App() {
         <Route
           path="usuarios"
           element={
-            <Suspense fallback={<AdminFallback />}>
+            <Suspense fallback={<Fallback />}>
               <UsersPage />
+            </Suspense>
+          }
+        />
+      </Route>
+
+      {/* Área operacional — qualquer usuário autenticado. */}
+      <Route
+        path="/painel"
+        element={
+          <RequireAuthenticated>
+            <PanelLayout />
+          </RequireAuthenticated>
+        }
+      >
+        <Route
+          index
+          element={
+            <Suspense fallback={<Fallback />}>
+              <PanelDashboardPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="setores"
+          element={
+            <Suspense fallback={<Fallback />}>
+              <SectorsPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="ativos"
+          element={
+            <Suspense fallback={<Fallback />}>
+              <AssetsPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="esp32"
+          element={
+            <Suspense fallback={<Fallback />}>
+              <DevicesPage />
             </Suspense>
           }
         />
         <Route
           path="sensores"
           element={
-            <Suspense fallback={<AdminFallback />}>
-              <SensorsPage />
+            <Suspense fallback={<Fallback />}>
+              <PanelSensorsPage />
             </Suspense>
           }
         />

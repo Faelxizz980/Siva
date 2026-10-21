@@ -4,10 +4,10 @@ import { AlertMessage } from '../../../../components/ui/AlertMessage';
 import { Button } from '../../../../components/ui/Button';
 import { CheckboxField, InputField, SelectField, TextAreaField } from '../../../../components/ui/FormField';
 import { Modal } from '../../../../components/ui/Modal';
-import type { Company } from '../../../../types/company';
+import type { Asset } from '../../../../types/asset';
 import type { CreateSensorPayload, Sensor, UpdateSensorPayload } from '../../../../types/sensor';
-import { extractApiFieldErrors } from '../../forms/extract-api-field-errors';
-import { useCompanyCatalog } from '../use-company-catalog';
+import type { Device } from '../../../../types/device';
+import type { Sector } from '../../../../types/sector';
 
 /** Payload discriminado: o diálogo sabe se está criando ou alterando. */
 export type SensorSubmitPayload =
@@ -18,8 +18,9 @@ interface SensorFormDialogProps {
   open: boolean;
   /** `null` para criação; um sensor para edição. */
   sensor: Sensor | null;
-  companies: Company[];
-  token: string;
+  sectors: Sector[];
+  assets: Asset[];
+  devices: Device[];
   onClose: () => void;
   onSubmit: (submit: SensorSubmitPayload) => Promise<void>;
 }
@@ -35,20 +36,20 @@ const FIELD_MESSAGES: Record<string, string> = {
 export function SensorFormDialog({
   open,
   sensor,
-  companies,
-  token,
+  sectors,
+  assets,
+  devices,
   onClose,
   onSubmit,
 }: SensorFormDialogProps) {
-  // A `key` remonta o formulário a cada abertura/troca de sensor, garantindo
-  // estado inicial limpo sem efeitos colaterais.
   return (
     <SensorFormDialogBody
       key={`${sensor?.id ?? 'novo'}-${open ? 'aberto' : 'fechado'}`}
       open={open}
       sensor={sensor}
-      companies={companies}
-      token={token}
+      sectors={sectors}
+      assets={assets}
+      devices={devices}
       onClose={onClose}
       onSubmit={onSubmit}
     />
@@ -58,47 +59,44 @@ export function SensorFormDialog({
 function SensorFormDialogBody({
   open,
   sensor,
-  companies,
-  token,
+  sectors,
+  assets,
+  devices,
   onClose,
   onSubmit,
 }: SensorFormDialogProps) {
   const isEditing = sensor !== null;
 
-  const [empresaId, setEmpresaId] = useState('');
   const [setorId, setSetorId] = useState('');
-  const [ativoId, setAtivoId] = useState('');
-  const [esp32Id, setEsp32Id] = useState('');
-  const [sensorId, setSensorId] = useState('');
+  const [ativoId, setAtivoId] = useState(sensor ? String(sensor.ativoId) : '');
+  const [esp32Id, setEsp32Id] = useState(sensor ? String(sensor.esp32Id) : '');
+  const [sensorId, setSensorId] = useState(sensor?.sensorId ?? '');
   const [tag, setTag] = useState(sensor?.tag ?? '');
   const [descricao, setDescricao] = useState(sensor?.descricao ?? '');
   const [ativoStatus, setAtivoStatus] = useState(sensor?.ativoStatus ?? true);
-
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  const { catalog, isLoading: isCatalogLoading } = useCompanyCatalog(token, empresaId ? [empresaId] : []);
-
   const assetsBySetor = useMemo(() => {
-    const grouped = new Map<number, typeof catalog.assets>();
-    for (const asset of catalog.assets) {
+    const grouped = new Map<number, Asset[]>();
+    for (const asset of assets) {
       const list = grouped.get(asset.setorId) ?? [];
       list.push(asset);
       grouped.set(asset.setorId, list);
     }
     return grouped;
-  }, [catalog.assets]);
+  }, [assets]);
 
   const devicesBySetor = useMemo(() => {
-    const grouped = new Map<number, typeof catalog.devices>();
-    for (const device of catalog.devices) {
+    const grouped = new Map<number, Device[]>();
+    for (const device of devices) {
       const list = grouped.get(device.setorId) ?? [];
       list.push(device);
       grouped.set(device.setorId, list);
     }
     return grouped;
-  }, [catalog.devices]);
+  }, [devices]);
 
   const availableAssets = setorId ? (assetsBySetor.get(Number(setorId)) ?? []) : [];
   const availableDevices = setorId ? (devicesBySetor.get(Number(setorId)) ?? []) : [];
@@ -146,12 +144,7 @@ function SensorFormDialogBody({
         });
       }
     } catch (error: unknown) {
-      const apiErrors = extractApiFieldErrors(error, FIELD_MESSAGES);
-      if (Object.keys(apiErrors).length > 0) {
-        setErrors(apiErrors);
-      } else {
-        setFormError(error instanceof Error ? error.message : 'Não foi possível salvar o sensor.');
-      }
+      setFormError(error instanceof Error ? error.message : 'Não foi possível salvar o sensor.');
     } finally {
       setIsSaving(false);
     }
@@ -164,8 +157,8 @@ function SensorFormDialogBody({
       title={isEditing ? 'Editar sensor' : 'Novo sensor'}
       description={
         isEditing
-          ? 'Vínculos com ativo, ESP32 e sensorId são imutáveis — apenas os dados descritivos podem ser alterados.'
-          : 'Vincule o sensor a um ativo e a um dispositivo ESP32 do mesmo setor.'
+          ? 'Vínculos com ativo, ESP32 e sensor_id são imutáveis — apenas os dados descritivos e o status podem ser alterados.'
+          : 'Ativo e ESP32 precisam pertencer ao mesmo setor — o servidor valida essa regra.'
       }
       footer={
         <>
@@ -185,31 +178,12 @@ function SensorFormDialogBody({
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
             <p className="font-semibold text-slate-800">{sensor.tag ?? `Sensor #${sensor.id}`}</p>
             <p className="mt-0.5 text-xs text-slate-500">
-              sensorId {sensor.sensorId} · ativo #{sensor.ativoId} · ESP32 #{sensor.esp32Id}
+              sensor_id {sensor.sensorId} · ativo #{sensor.ativoId} · ESP32 #{sensor.esp32Id}
             </p>
           </div>
         ) : (
           <>
             <div className="grid gap-4 sm:grid-cols-2">
-              <SelectField
-                name="empresa"
-                label="Empresa"
-                required
-                value={empresaId}
-                onChange={(value) => {
-                  setEmpresaId(value);
-                  setSetorId('');
-                  setAtivoId('');
-                  setEsp32Id('');
-                }}
-                placeholder="Selecione a empresa"
-                disabled={isSaving}
-                options={companies.map((company) => ({
-                  value: String(company.id),
-                  label: company.nome,
-                }))}
-              />
-
               <SelectField
                 name="setor"
                 label="Setor"
@@ -220,18 +194,23 @@ function SensorFormDialogBody({
                   setAtivoId('');
                   setEsp32Id('');
                 }}
-                placeholder={
-                  empresaId === ''
-                    ? 'Selecione a empresa primeiro'
-                    : isCatalogLoading
-                      ? 'Carregando setores…'
-                      : 'Selecione o setor'
-                }
-                disabled={isSaving || empresaId === '' || isCatalogLoading}
-                options={catalog.setores.map((sector) => ({
+                placeholder="Selecione o setor"
+                disabled={isSaving}
+                options={sectors.map((sector) => ({
                   value: String(sector.id),
                   label: sector.nome,
                 }))}
+              />
+
+              <InputField
+                name="sensorId"
+                label="Identificador do sensor (sensor_id)"
+                required
+                value={sensorId}
+                onChange={setSensorId}
+                error={errors.sensorId}
+                placeholder="sensor_01"
+                disabled={isSaving}
               />
             </div>
 
@@ -266,17 +245,6 @@ function SensorFormDialogBody({
                 }))}
               />
             </div>
-
-            <InputField
-              name="sensorId"
-              label="Identificador do sensor"
-              required
-              value={sensorId}
-              onChange={setSensorId}
-              error={errors.sensorId}
-              placeholder="sensor_01"
-              disabled={isSaving}
-            />
           </>
         )}
 
@@ -287,7 +255,7 @@ function SensorFormDialogBody({
           onChange={setTag}
           error={errors.tag}
           placeholder="SN-PRD-001"
-          hint="Opcional."
+          hint="Identificação física do sensor (única na plataforma)."
           disabled={isSaving}
         />
 
@@ -303,11 +271,14 @@ function SensorFormDialogBody({
 
         <CheckboxField
           name="ativoStatus"
-          label="Sensor ativo"
+          label="Sensor habilitado (ativoStatus)"
           checked={ativoStatus}
           onChange={setAtivoStatus}
           disabled={isSaving}
         />
+        <p className="-mt-2 text-xs text-slate-500">
+          Habilitar o sensor não garante comunicação: o dispositivo ESP32 pode estar offline.
+        </p>
       </div>
     </Modal>
   );

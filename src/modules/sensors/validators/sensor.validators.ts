@@ -9,6 +9,13 @@ export const createSensorSchema = z.object({
   ativoStatus: z.boolean().default(true),
 });
 
+/**
+ * Campos editáveis de um sensor.
+ *
+ * `ativoId`, `esp32Id` e `sensorId` são imutáveis: a vínculo do sensor com o
+ * ativo e o dispositivo é a identidade do registro. Alterá-los exigiria
+ * recriá-lo.
+ */
 export const updateSensorSchema = createSensorSchema
   .partial()
   .omit({ ativoId: true, esp32Id: true, sensorId: true });
@@ -20,6 +27,8 @@ export const sensorIdParamSchema = z.object({
 export const listSensorsQuerySchema = z.object({
   esp32Id: z.coerce.number().int().positive().optional(),
   ativoId: z.coerce.number().int().positive().optional(),
+  empresaId: z.coerce.number().int().positive().optional(),
+  ativoStatus: z.coerce.boolean().optional(),
   page: z.coerce.number().int().positive().optional(),
   pageSize: z.coerce.number().int().positive().optional(),
 });

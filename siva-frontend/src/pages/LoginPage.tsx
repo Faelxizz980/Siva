@@ -14,10 +14,10 @@ export default function LoginPage() {
   const isAuthenticated = status === 'authenticated' && user !== null;
   const isAdmin = user?.tipo === 'ADMIN';
 
-  // Perfis ADMIN seguem direto para a área administrativa.
+  // ADMIN vai para a área administrativa; os demais perfis, para o painel operacional.
   useEffect(() => {
-    if (isAuthenticated && isAdmin) {
-      navigate('/admin', { replace: true });
+    if (isAuthenticated) {
+      navigate(isAdmin ? '/admin' : '/painel', { replace: true });
     }
   }, [isAdmin, isAuthenticated, navigate]);
 

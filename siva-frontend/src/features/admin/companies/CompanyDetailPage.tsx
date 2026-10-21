@@ -47,7 +47,7 @@ export default function CompanyDetailPage() {
       // eles são consultados por setor (endpoint existente e já usado pela API).
       const devicesPerSector = await Promise.all(
         details.setores.map((sector) =>
-          catalogService.devices(session.token, sector.id).then((result) => result.items),
+          catalogService.devices(session.token, { setorId: sector.id }).then((result) => result.items),
         ),
       );
 

@@ -3,7 +3,8 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { ForbiddenError, UnauthorizedError } from '../shared/errors/app-error.js';
 import type { AuthenticatedUser, AuthenticatedDevice } from '../types/express.js';
-import { findDeviceByToken } from '../modules/devices/repositories/device.repository.js';
+import { findDeviceByTokenHash } from '../modules/devices/repositories/device.repository.js';
+import { hashDeviceToken } from '../utils/device-token.js';
 
 /** Autentica usuários do dashboard via `Authorization: Bearer <jwt>`. */
 export function authenticateUser(req: Request, _res: Response, next: NextFunction): void {
@@ -43,7 +44,7 @@ export async function authenticateDevice(
     throw new UnauthorizedError('Header X-Token ausente.');
   }
 
-  const device = await findDeviceByToken(value);
+  const device = await findDeviceByTokenHash(hashDeviceToken(value));
   if (!device) {
     throw new UnauthorizedError('X-Token inválido.');
   }

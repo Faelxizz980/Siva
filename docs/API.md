@@ -147,15 +147,33 @@ Content-Type: application/json
     "id": 4,
     "setorId": 1,
     "espId": "esp_04",
-    "token": "dev-abc123xyz...",
+    "token": "dev-7Kq2p1xN8vTn4wRb6mLc0hJ3sYd5fG",
     "descricao": "ESP32 da linha de envase",
     "ultimoContato": null,
+    "online": false,
     "criadoEm": "2026-08-07T12:05:00.000Z"
   }
 }
 ```
 
 Guarde o `token` agora — nenhuma outra chamada (`GET /api/devices` ou `GET /api/devices/:id`) volta a mostrá-lo (ver [BUSINESS_FLOWS.md](./BUSINESS_FLOWS.md#fluxo-2--provisionamento-da-hierarquia-cadastro-inicial-de-uma-empresa)).
+
+> **Segurança (2026-10-21):** o banco guarda apenas o **hash SHA-256** do token
+> (`esp32.token_hash`). O valor em claro acima existe só nesta resposta — e o próprio
+> `tokenHash` nunca é devolvido pela API. O `online` é calculado a partir do
+> `ultimoContato` (janela de 10 minutos).
+
+### 3.1 Listar dispositivos (escopo por empresa)
+
+```http
+GET /api/devices?empresaId=1&page=1&pageSize=20
+Authorization: Bearer <jwt>
+```
+
+- `setorId` **ou** `empresaId` são filtros opcionais. Sem nenhum deles, a listagem é da
+  empresa do usuário autenticado (para `ADMIN`, o consolidado de todas).
+- Um `empresaId` de outra empresa resulta em `403` para `GESTOR`/`TECNICO`.
+- O `online` de cada item reflete o último contato registrado.
 
 ### 4. Ingestão de leitura (firmware → API)
 

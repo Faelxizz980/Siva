@@ -1,253 +1,277 @@
-# SIVA Back-End — Relatório Final de Integração para o Front-End
+# RELATÓRIO TÉCNICO — BACK-END SIVA (somente leitura, nenhum arquivo alterado)
 
-Implementação concluída conforme especificação. Back-end pronto para consumo pelo front-end (repositório separado).
+Baseado exclusivamente no código real em `/workspaces/Siva`. Verificado via `src/`, `prisma/schema.prisma`, `src/docs/openapi.ts`, `src/routes/index.ts`, validators, services, middlewares.
 
-## 0. Como rodar (guia operacional)
+---
 
-```bash
-npm install
-cp .env.example .env   # ajustar JWT_SECRET, CORS_ORIGIN, DATABASE_URL
-# Desenvolvimento com banco:  npm run prisma:deploy && npm run seed && npm run dev
-# Desenvolvimento sem banco:  MOCK_MODE=true npm run dev   (ou npm run dev:mock)
-```
+## 1. Visão geral e stack
 
-- **Migration (banco existente):** aplicar `db/migrations/001_roles_status.sql` — converte
-  `super_admin→ADMIN`, `admin_empresa→GESTOR`, `funcionario→TECNICO`, cria
-  `especialidade` (nullable) e `status` (default `ATIVO`). Banco novo: usar `db/db.sql`.
-- **Seed:** `npm run seed` — cria `admin@siva.local` (ADMIN, senha `senha123`, hash bcrypt)
-  + empresa/setor/ESP32/ativo/sensor de exemplo + 1 manutenção.
-- **URL base (dev):** `http://localhost:3000/api` · **Swagger:** `http://localhost:3000/docs`
-  · **Health:** `GET /api/health` (público).
-- **Variáveis para integração:** `PORT` · `DATABASE_URL` (ignorado com `MOCK_MODE=true`) ·
-  `JWT_SECRET` · `JWT_EXPIRES_IN` (default `8h`) · `CORS_ORIGIN` (ex `http://localhost:5173`) ·
-  `MOCK_MODE` · `NODE_ENV` · `RATE_LIMIT_*` · `LOG_LEVEL`.
+| Item | Valor real |
+|---|---|
+| Nome/versão | `siva-backend@0.1.0` (`package.json:1-4`) |
+| Runtime | Node `>=22`, ESM (`"type":"module"`) |
+| Framework | Express `^5.0.1` |
+| ORM/Banco | Prisma `^6.2.1` + MySQL (`datasource db provider mysql`, `prisma/schema.prisma:9-12`). Schema espelha `db/db.sql` 1:1 (comentário `schema.prisma:1-3`) |
+| Auth | `jsonwebtoken ^9.0.2` + `bcryptjs ^2.4.3` |
+| Validação | `zod ^3.24.1` na borda via `validate` middleware |
+| Infra | `helmet`, `cors`, `compression`, `express-rate-limit`, `pino` + `pino-pretty`, `dotenv`, `swagger-ui-dist` |
+| Scripts | `dev: tsx watch src/server.ts`, `dev:mock: MOCK_MODE=true`, `build: tsc -p tsconfig.build.json`, `start: node dist/server.js`, `test: vitest run`, `seed: tsx prisma/seed.ts`, `simulate:esp32: tsx scripts/simulate-esp32.ts` (`package.json:10-30`) |
+| Testes | `vitest`, `supertest`, config `vitest.config.ts` força `MOCK_MODE=true`, `JWT_SECRET=test-secret...`, include `tests/**/*.test.ts` |
 
-## 1. O que foi alterado no banco
-
-- `usuario.tipo`: `ENUM('ADMIN','GESTOR','TECNICO')` (era `super_admin/admin_empresa/funcionario`).
-- `usuario.especialidade`: `ENUM('MECANICO','ELETRICISTA') NULL` — obrigatória p/ TECNICO.
-- `usuario.status`: `ENUM('ATIVO','INATIVO') DEFAULT 'ATIVO'`.
-- Arquivos: `prisma/schema.prisma` · `db/db.sql` · `db/migrations/001_roles_status.sql` (nova,
-  com mapeamento seguro) · `prisma/seed.ts` (ADMIN `admin@siva.local` + compat `super@siva.com`).
-
-## 1.1. Novo modelo do sistema
+Estrutura `src/` (98 `.ts`):
 
 ```text
-ADMIN (global, sem empresa, sem especialidade)
-│
-EMPRESA
-│
-├── USUARIOS
-│     ├── GESTOR (empresa obrigatória, sem especialidade)
-│     └── TECNICO (empresa obrigatória)
-│            ├── MECANICO
-│            └── ELETRICISTA
-│
-├── SETORES
-│     ├── ATIVOS (tanque, bomba, tubulação)
-│     │     └── SENSORES (ligam um ATIVO a um ESP32)
-│     │
-│     └── ESP32 (espId + token X-Token, um por setor/instalação)
-│            └── SENSORES (sensorId lógico, ex "sensor_01")
-│                  ├── LEITURAS (vazão L/min, via X-Token)
-│                  └── MANUTENCOES (preventiva|corretiva|inspecao → funcionario TECNICO)
+src/app.ts (factory createApp)
+src/server.ts (listen + graceful shutdown)
+src/config/env.ts
+src/database/prisma.ts
+src/routes/index.ts (monta /api + /health)
+src/docs/openapi.ts + docs.routes.ts (/docs)
+src/middlewares/ (5): auth, validate, error-handler, not-found, request-logger
+src/shared/auth/scope.ts, shared/errors/, shared/http/ (api-response, pagination), shared/mock/ (3)
+src/modules/ (11): auth, users, companies, sectors, assets, devices, sensors, readings, maintenances, alerts, dashboard
+  padrão por módulo: controllers/ services/ repositories/ dtos/ entities/ validators/ routes/
+  exceções: dashboard (só controller/service/route), auth (repository/entity vazios), alerts (repository vazio)
+src/types/express.d.ts, utils/ (async-handler, bigint-json, logger), interfaces/repository.interface.ts
+src/jobs/ só README.md, sem código
 ```
 
-```mermaid
-erDiagram
-    EMPRESA ||--o{ USUARIO : "possui (exceto ADMIN)"
-    EMPRESA ||--o{ SETOR : "possui"
-    SETOR ||--o{ ATIVO : "possui"
-    SETOR ||--o{ ESP32 : "possui"
-    ATIVO ||--o{ SENSOR : "é monitorado por"
-    ESP32 ||--o{ SENSOR : "lê"
-    SENSOR ||--o{ LEITURA : "gera"
-    SENSOR ||--o{ MANUTENCAO : "recebe"
-    USUARIO ||--o{ MANUTENCAO : "executa (funcionario_id)"
+Não existe: WebSocket, upload, integração externa, queue/job. `firmware/` existe na raiz mas não faz parte do back-end.
 
-    USUARIO {
-        int id PK
-        varchar100 nome
-        varchar100 email UK
-        varchar255 senha "bcrypt hash"
-        enum tipo "ADMIN | GESTOR | TECNICO"
-        enum especialidade "MECANICO | ELETRICISTA, nullable (obrigatória p/ TECNICO)"
-        enum status "ATIVO | INATIVO, default ATIVO"
-        int empresa_id FK "NULL só p/ ADMIN"
-        datetime criado_em
-    }
+---
+
+## 2. Boot, configuração e fluxo real da requisição
+
+### 2.1 Entrypoints
+
+`src/server.ts`: `createApp()` + `app.listen(env.PORT)` + log `port/mockMode/env` + `SIGINT/SIGTERM → server.close → disconnectDatabase()`.
+
+`src/app.ts:createApp()`:
+
+```text
+import './utils/bigint-json.js' (BigInt.prototype.toJSON → Number, necessário p/ Leitura.id BigInt)
+disable x-powered-by
+→ helmet (CSP script-src 'self' 'unsafe-inline' p/ docs)
+→ cors ({origin: CORS_ORIGIN==='*' ? true : split(',')})
+→ compression()
+→ express.json({limit:'1mb'})
+→ requestLogger (X-Request-Id + req.log)
+→ rateLimit({windowMs, limit, standardHeaders:true})
+→ /docs (docsRoutes)
+→ /api (apiRoutes)
+→ notFoundMiddleware (404 ROUTE_NOT_FOUND)
+→ errorHandler (4 args, final)
 ```
 
-| Tipo | empresaId | especialidade | status | Escopo |
-|---|---|---|---|---|
-| `ADMIN` | `null` (proibido enviar) | `null` (proibida) | `ATIVO\|INATIVO` | Global |
-| `GESTOR` | obrigatório | `null` (proibida) | `ATIVO\|INATIVO` | Própria empresa |
-| `TECNICO` | obrigatório | `MECANICO\|ELETRICISTA` obrigatória | `ATIVO\|INATIVO` | Própria empresa |
+`src/routes/index.ts:15-31`: `GET /health` pública + `use()` para 11 routers: `/auth,/users,/companies,/sectors,/assets,/devices,/sensors,/readings,/maintenances,/alerts,/dashboard`. Prefixo final = `/api` + prefixo.
 
-Regras de integridade: FK `usuario.empresa_id → empresa.id`; `UNIQUE(email, cnpj, ativo.tag,
-esp32.esp_id, esp32.token, sensor.tag, sensor(esp32_id,sensor_id))`; sensor exige
-`ativo.setor_id == esp32.setor_id` (422); INATIVO bloqueia `POST /login` (403) e `GET /me`.
+`src/database/prisma.ts`: singleton `global.__sivaPrisma`; se `MOCK_MODE=true`, `prisma = undefined` (nunca instancia, roda sem MySQL/`prisma generate`).
 
-## 2. Autenticação
+### 2.2 Fluxo adaptado à realidade
 
-- Mantido JWT. `POST /api/auth/login` recebe `{"email","senha"}`.
-- Resposta: `{success:true,data:{token,user:{id,nome,email,tipo,especialidade,empresaId,status,criadoEm}}}` — sem senha.
-- **INATIVO não loga:** `403 FORBIDDEN`. `GET /api/auth/me` também barra INATIVO.
-- JWT payload: `{id,email,tipo,empresaId}` (+`iat/exp`). Sem senha.
+```text
+Cliente
+ ↓ (JSON ≤1mb, CORS, rate-limit, X-Request-Id)
+Route (declara path+método, ex. modules/users/routes/user.routes.ts)
+ ↓
+authenticateUser (Bearer JWT) OU authenticateDevice (X-Token, só POST /readings)
+ ↓
+authorize(...roles) quando presente
+ ↓
+validate({body,params,query}) Zod → 422 se falhar
+ ↓
+Controller fino (extrai req.user/req.device/params/query/body → chama service → ok/created/paginated/noContent)
+ ↓
+Service (regras: assertSameCompany, valida combinação tipo/empresa, unicidade, relações setor→empresa)
+ ↓
+Repository dual: Prisma OU Mock em memória (createXRepository() escolhe por env.MOCK_MODE)
+ ↓
+Prisma MySQL OU MockCollection
+ ↓
+Resposta {success:true,data[,meta]} ou {success:false,error:{code,message,details}}
+```
+
+Sem camadas faltantes: controller/service/repository existem em 8/11 módulos. Não há DTO-transform fora de `toPublicUser/toPublicDevice`.
+
+### 2.3 Variáveis de ambiente (`src/config/env.ts:4-18`, `.env.example`)
+
+| Var | Tipo/default | Obrigatória? |
+|---|---|---|
+| `NODE_ENV` | `development\|test\|production`, default `development` | não |
+| `PORT` | int+, default `3000` | não |
+| `MOCK_MODE` | string `true/false` → boolean, default `false`. `true` = 100% memória, ignora MySQL, ideal p/ frontend | não |
+| `DATABASE_URL` | string, ex. `mysql://root:root@localhost:3306/siva_db` | sim se `MOCK_MODE=false`, senão boot aborta |
+| `JWT_SECRET` | min 8, default `troque-este-valor-em-producao` | não (trocar em prod) |
+| `JWT_EXPIRES_IN` | string, default `8h` | não |
+| `CORS_ORIGIN` | string, default `*` (em `app.ts:28`: `*`→`true`, senão `split(',')`); exemplo `http://localhost:5173` | não |
+| `RATE_LIMIT_WINDOW_MS` | default `60000` | não |
+| `RATE_LIMIT_MAX` | default `100` | não |
+| `LOG_LEVEL` | `fatal..silent`, default `info` | não |
+
+---
+
+## 3. Autenticação e autorização (contrato crítico p/ frontend)
+
+### 3.1 JWT usuários (dashboard)
+
+Login: `POST /api/auth/login` (`auth.service.ts:12-35`): `findByEmail → bcrypt.compare → 401 'E-mail ou senha inválidos.'` se falhar; `403` se `status==='INATIVO'`; payload JWT = `{id,email,tipo,empresaId}` (`AuthenticatedUser`, `types/express.d.ts:8-13`), assinado com `JWT_SECRET/JWT_EXPIRES_IN`. Retorna `200 {success:true,data:{token,user:PublicUser sem senha}}`.
+
+Uso: header `Authorization: Bearer <jwt>` (`auth.middleware.ts:9-23`). Ausente → `401 Token ausente`; inválido/expirado → `401 Token inválido ou expirado`. `GET /api/auth/me` recarrega do banco e re-bloqueia INATIVO (`auth.service.ts:37-44`).
+
+### 3.2 RBAC (`authorize(...allowed)`, `auth.middleware.ts:25-31`)
+
+Exige `req.user`, senão `401`; se `tipo` fora da lista → `403 Acesso não permitido`. Matriz real por rota (ver §6):
+
+- `GET /users*` = `ADMIN,GESTOR`; `POST/PATCH/DELETE /users*` = só `ADMIN`
+- `GET /companies, GET /companies/:id` = qualquer autenticado (service filtra); `GET /:id/details, /:id/users, POST/PATCH/DELETE` = só `ADMIN`
+- `sectors/assets/devices/sensors`: `GET` = autenticado; mutações = `ADMIN,GESTOR` (TECNICO só lê)
+- `readings GET` = autenticado (escopo via sensor); `readings POST` = sem JWT (ver 3.3)
+- `maintenances/*`, `alerts GET` = só `authenticateUser`, sem `authorize` (qualquer papel, escopo via sensor)
+- `dashboard/admin-summary` = só `ADMIN`
+
+Multiempresa (`shared/auth/scope.ts:4-17`): `isAdmin = tipo==='ADMIN'` (alias `isSuperAdmin`); `assertSameCompany`: ADMIN pula; demais exigem `user.empresaId === empresaId`, senão `403 Você não tem acesso...`. Nunca confiar em `empresaId` do client sozinho.
+
+Roles oficiais: `ADMIN (empresaId=null, especialidade=null)`, `GESTOR (empresaId obrigatório, especialidade=null)`, `TECNICO (empresaId+especialidade MECANICO/ELETRICISTA obrigatórios)`. Validado em Zod (`user.validators.ts:17-66`) + service (`assertValidCombination`).
+
+### 3.3 X-Token ESP32
+
+Só `POST /api/readings` (`reading.routes.ts:10-15`). Middleware `authenticateDevice` (`auth.middleware.ts:33-57`): lê `X-Token`, `findDeviceByToken`, injeta `req.device={id,espId,setorId}`; ausente/inválido → `401`. Service (`reading.service.ts:21-29`) exige `body.esp_id === device.espId` senão `403`, sensor `(device.id + sensor_id)` existente senão `404`, depois `create + touchContact(ultimoContato=now)`.
+
+Token gerado server-side `dev-<rand><timestamp>` (`device.repository.ts`), **exposto só no `POST /devices` 201**; demais respostas usam `toPublicDevice` (omite `token`, `device.entity.ts:11-16`). Nunca logar/enviar em erro.
+
+OpenAPI declara `bearerAuth (http/bearer/JWT)` e `xTokenAuth (apiKey/header/X-Token)` (`openapi.ts:77-81`).
+
+---
+
+## 4. Modelos (Prisma) — fonte para tipar o frontend
+
+`prisma/schema.prisma:14-176`, MySQL, `@@map` snake_case.
+
+| Model | Campos (tipo/constraints) |
+|---|---|
+| `Empresa` | `id int PK, nome varchar100, cnpj varchar20? @unique, criadoEm DateTime, usuarios[], setores[]` |
+| `Usuario` | `id, nome100, email100 @unique, senha255(hash), tipo ADMIN\|GESTOR\|TECNICO, especialidade MECANICO\|ELETRICISTA?, status ATIVO(def)\|INATIVO, empresaId int? (null=ADMIN), criadoEm` |
+| `Setor` | `id, empresaId FK, nome100, criadoEm` |
+| `Ativo` | `id, setorId FK, nome100, tag50? @unique, tipo50?, criticidade baixa\|media(default)\|alta, centroCusto50?, fotoUrl255?(url), manualUrl255?(url), descricao255?, criadoEm` |
+| `Esp32` | `id, setorId FK, espId50 @unique (id lógico firmware), token255 @unique (X-Token), descricao100?, ultimoContato?, criadoEm` |
+| `Sensor` | `id, ativoId FK, esp32Id FK, sensorId50 (id físico, ex sensor_01), tag50? @unique, descricao100?, ativoStatus bool def true, criadoEm, @@unique([esp32Id,sensorId])` |
+| `Leitura` | `id BigInt PK (serializado como Number via bigint-json), sensorId FK, vazao Float, registradoEm def now, @@index([sensorId,registradoEm])` |
+| `Manutencao` | `id, sensorId FK, tipo preventiva\|corretiva\|inspecao, status aberto(def)\|em_andamento\|concluido, descricao Text?, funcionarioId? FK Usuario, abertoEm def now, concluidoEm? (auto-preenchido quando status→concluido), @@index([status])` |
+
+Hierarquia: `Empresa → Setor → (Ativo, Esp32) → Sensor (ativoId+esp32Id mesmo setor obrigatório) → (Leitura, Manutencao)`.
+
+Seed (`prisma/seed.ts`): empresa `Aquaplás`, ADMIN `admin@siva.local/super@siva.com`, GESTOR `carla...`, TECNICO MECANICO `diego...` (senha `senha123`), setor `Produção`, `esp_01/dev-token-esp01`, ativo `AT-PRD-001`, sensor `sensor_01/SN-PRD-001`, manutenção preventiva. Mock (`shared/mock/mock-store.ts`) tem 2 empresas, 4 users, 3 setores/ativos/devices/sensores, 25 leituras/sensor, 2 manutenções.
+
+---
+
+## 5. Padrões de resposta, erro, paginação
+
+Sucesso (`shared/http/api-response.ts`): `ok → 200 {success:true,data}`, `created → 201`, `noContent → 204 vazio` (todos DELETE), `paginated → 200 {success:true,data[],meta:{total,page,pageSize,totalPages}}`.
+
+Paginação (`shared/http/pagination.ts:8-12`): `page=max(1,|1)`, `pageSize=min(100,max(1,|20))`. Listas ordenam `id asc`, exceto readings `registradoEm desc` (default `pageSize 50`) e maintenances `abertoEm desc`.
+
+Erro (`middlewares/error-handler.ts` + `not-found`):
 
 ```json
-// POST /api/auth/login → 200
-{"success":true,"data":{"token":"eyJ...","user":{"id":1,"nome":"Administrador SIVA","email":"admin@siva.local","tipo":"ADMIN","especialidade":null,"empresaId":null,"status":"ATIVO","criadoEm":"..."}}}
+422 {"success":false,"error":{"code":"VALIDATION_ERROR","message":"Dados inválidos.","details":{"fieldErrors":{},"formErrors":[]}}}
+401 {"success":false,"error":{"code":"UNAUTHORIZED","message":"..."}}
+403 {"success":false,"error":{"code":"FORBIDDEN","message":"..."}}
+404 {"success":false,"error":{"code":"NOT_FOUND","message":"..."}}
+409 {"success":false,"error":{"code":"CONFLICT","message":"Registro já existe..."}}
+404 {"success":false,"error":{"code":"ROUTE_NOT_FOUND","message":"Rota METHOD /api/xxx não existe."}}
+500 {"success":false,"error":{"code":"INTERNAL_SERVER_ERROR","message":"..."}}
+501 GET /alerts NotImplemented
 ```
 
-## 3. Permissões
+Frontend deve: checar `success`, usar `data`, usar `meta.total/page/pageSize/totalPages` p/ paginar, exibir `error.message`, tratar `401→re-login`, `403→sem permissão`, `422→destacar campo via details.fieldErrors`, `409→duplicidade`.
 
-- `authenticateUser` (Bearer) em todo dashboard; `authorize('ADMIN'|'GESTOR'|...)` por rota;
-  `assertSameCompany` (ADMIN bypassa; demais exigem `empresaId` igual).
-- **Somente ADMIN:** criar/editar/status/excluir usuários; CRUD empresas (escrita);
-  `/:id/details`, `/:id/users`, `/dashboard/admin-summary`.
-- **GESTOR:** leitura da própria empresa (companies filtrado, users da própria, setores/ativos/
-  devices/sensores escopados, leituras/manutenções); escrita em setores/ativos/devices/sensores
-  da própria empresa (preservado). Não cria usuários/empresas, não vê dashboard admin.
-- **TECNICO:** leitura escopada + CRUD manutenções; sem escrita em users/companies/infra.
-- ESP32 (`X-Token`) só em `POST /api/readings`. JWT nunca serve p/ ingestão e vice-versa.
+---
 
-## 4–6. Tipos, especialidade, status
+## 6. Tabela geral de endpoints (45 `/api` + 3 `/docs`)
 
-- `tipo`: `ADMIN` (sem empresa/especialidade) · `GESTOR` (empresa obrigatória, sem especialidade) ·
-  `TECNICO` (empresa + `MECANICO|ELETRICISTA` obrigatórias). Validadas no Zod (422) e no service.
-- `status`: `ATIVO|INATIVO`. Inativar preserva histórico; INATIVO não loga nem usa rotas protegidas
-  (`/me` barra; JWT antigo continua tecnicamente válido até expirar, mas qualquer chamada que
-  recarrega o usuário — `/me` — falha; re-login bloqueado).
-- Sem `POST /api/auth/register` (não existe cadastro público).
+Base `http://host:PORT/api`, `Content-Type: application/json` (exceto 204). Auth `B`=Bearer JWT, `X`=X-Token.
 
-## 7. Endpoints criados
+| Método | Endpoint | Auth | Query/body principal | Resposta | Status |
+|---|---|---|---|---|---|
+| GET | `/health` | — | — | `{status:'ok',mockMode,env}` | 200 |
+| POST | `/auth/login` | — | `{email,senha}` | `{token,user}` | 200/401/422 |
+| GET | `/auth/me` | B | — | `User` | 200/401/403 |
+| GET | `/users/` | B ADMIN,GESTOR | `empresaId?,tipo?,status?,page?,pageSize?` | `User[] paginado` | 200/401/403/422 |
+| GET | `/users/:id` | B ADMIN,GESTOR | param `id` | `User` | 200/401/403/404/422 |
+| POST | `/users/` | B ADMIN | `{nome2-100,email,senha6-72,tipo,empresaId?,especialidade?,status?}` + regras tipo | `User` | 201/401/403/409/422 |
+| PATCH | `/users/:id` | B ADMIN | parcial mesmo schema | `User` | 200/... |
+| PATCH | `/users/:id/status` | B ADMIN | `{status:ATIVO\|INATIVO}` | `User` | 200/... |
+| DELETE | `/users/:id` | B ADMIN | — | vazio | 204/401/403/404/409 |
+| GET | `/companies/` | B | `page?,pageSize?` (ADMIN tudo, demais só própria) | `Company[]` | 200 |
+| GET | `/companies/:id` | B | — | `Company{id,nome,cnpj,criadoEm}` | 200/404/403 |
+| GET | `/companies/:id/details` | B ADMIN | — | `{empresa,funcionarios[],setores[],resumo:{funcionarios,setores,ativos,esp32,sensores}}` | 200/403/404 |
+| GET | `/companies/:id/users` | B ADMIN | `page?,pageSize?` | `User[] paginado` | 200 |
+| POST | `/companies/` | B ADMIN | `{nome2-100,cnpj≤20?}` | `Company` | 201/409/422 |
+| PATCH | `/companies/:id` | B ADMIN | parcial | `Company` | 200 |
+| DELETE | `/companies/:id` | B ADMIN | — | vazio | 204/404/409 |
+| GET | `/sectors/` | B | `empresaId?,page?,pageSize?` | `Sector[]` | 200 |
+| GET | `/sectors/:id` | B | — | `Sector{id,empresaId,nome,criadoEm}` | 200/404/403 |
+| POST | `/sectors/` | B ADMIN,GESTOR | `{empresaId,nome2-100}` | `Sector` | 201 |
+| PATCH | `/sectors/:id` | B ADMIN,GESTOR | `{nome}` (empresaId imutável) | `Sector` | 200 |
+| DELETE | `/sectors/:id` | B ADMIN,GESTOR | — | vazio | 204/409 |
+| GET | `/assets/` | B | `setorId obrigatório,page?,pageSize?` | `Asset[]` | 200/422/403 |
+| GET | `/assets/:id` | B | — | `Asset` | 200/404 |
+| POST | `/assets/` | B ADMIN,GESTOR | `{setorId,nome,tag?,tipo?,criticidade baixa\|media(def)\|alta,centroCusto?,fotoUrl(url)?,manualUrl(url)?,descricao?}` | `Asset` | 201 |
+| PATCH | `/assets/:id` | B ADMIN,GESTOR | parcial sem `setorId` | `Asset` | 200 |
+| DELETE | `/assets/:id` | B ADMIN,GESTOR | — | vazio | 204 |
+| GET | `/devices/` | B | `setorId obrigatório` | `PublicDevice[] (sem token)` | 200 |
+| GET | `/devices/:id` | B | — | `PublicDevice` | 200 |
+| POST | `/devices/` | B ADMIN,GESTOR | `{setorId,espId2-50,descricao?}` (token gerado) | `Device COM token (única vez)` | 201/409 |
+| PATCH | `/devices/:id` | B ADMIN,GESTOR | `{descricao?}` só | `PublicDevice` | 200 |
+| DELETE | `/devices/:id` | B ADMIN,GESTOR | — | vazio | 204 |
+| GET | `/sensors/` | B | `esp32Id?,ativoId?,page?,pageSize?` | `Sensor[]` | 200 |
+| GET | `/sensors/:id` | B | — | `Sensor` | 200 |
+| POST | `/sensors/` | B ADMIN,GESTOR | `{ativoId,esp32Id,sensorId1-50,tag?,descricao?,ativoStatus def true}` + mesmo setor obrigatório | `Sensor` | 201/403/409 |
+| PATCH | `/sensors/:id` | B ADMIN,GESTOR | `{tag?,descricao?,ativoStatus?}` (vínculos imutáveis) | `Sensor` | 200 |
+| DELETE | `/sensors/:id` | B ADMIN,GESTOR | — | vazio | 204 |
+| POST | `/readings/` | X | `{esp_id,sensor_id,vazao≥0,setor?}` | `Reading{id,sensorId,vazao,registradoEm}` | 201/401/403/404/422 |
+| GET | `/readings/` | B | `sensorId obrigatório,page?,pageSize?` | `Reading[] desc` | 200 |
+| GET | `/maintenances/` | B | `sensorId obrigatório` | `Maintenance[]` | 200 |
+| GET | `/maintenances/:id` | B | — | `Maintenance` | 200 |
+| POST | `/maintenances/` | B | `{sensorId,tipo preventiva\|corretiva\|inspecao,descricao≤2000?,funcionarioId?}` (funcionário deve ser da mesma empresa e ATIVO) | `Maintenance` | 201 |
+| PATCH | `/maintenances/:id` | B | `{status?,descricao?,funcionarioId?}` (concluido preenche `concluidoEm`) | `Maintenance` | 200 |
+| DELETE | `/maintenances/:id` | B | — | vazio | 204 |
+| GET | `/alerts/` | B | `sensorId?` | sempre `501 NOT_IMPLEMENTED` (controller `alert.controller.ts:6-8` nem responde, service lança) | 501 |
+| GET | `/dashboard/admin-summary` | B ADMIN | — | `{nEmpresas,nFuncionarios,nSensores,nEsp32,funcionarios:{total,gestores,tecnicos,mecanicos,eletricistas,ativos,inativos}}` | 200/403 |
+| GET | `/docs/openapi.json` | — | — | OpenAPI 3.0.3 | 200 |
+| GET | `/docs/` | — | — | HTML lista paths | 200 |
 
-| Método | Endpoint | Auth | Permissão |
-|---|---|---|---|
-| PATCH | `/api/users/:id/status` `{"status":"ATIVO"\|"INATIVO"}` | JWT | ADMIN |
-| GET | `/api/companies/:id/details` | JWT | ADMIN |
-| GET | `/api/companies/:id/users` | JWT | ADMIN |
-| GET | `/api/dashboard/admin-summary` | JWT | ADMIN |
+Detalhes verificados: `validate` torna `setorId/sensorId` obrigatórios onde indicado (422 se ausente); `fotoUrl/manualUrl` exigem URL válida; `vazao` coagido p/ number `≥0`; `concluidoEm` automático; `details` faz N+1 por setor/ESP com `BIG_PAGE=10000` (`company.service.ts:17,91-107`).
 
-## 8. Endpoints alterados
+---
 
-- `POST /api/users` — agora só ADMIN; valida combinação tipo/empresa/especialidade; 409 e-mail dup.
-- `PATCH /api/users/:id` — só ADMIN; edita nome/email/tipo/empresa/especialidade/senha (senha só se enviada, com hash).
-- `DELETE /api/users/:id` — só ADMIN; 409 se houver vínculos (antes podia mascarar como 404/500).
-- `GET /api/users` — filtros `?empresaId=&tipo=&status=` combináveis; GESTOR enxerga só a própria; `meta` agora inclui `totalPages`.
-- `GET /api/companies` — ADMIN vê todas; demais só a própria (inalterado no comportamento).
-- `POST/PATCH/DELETE /api/companies` — `ADMIN` (renomeado de `super_admin`).
-- Infra (`sectors/assets/devices/sensors`) escrita — `ADMIN,GESTOR` (renomeado); leitura escopada.
-- `POST /api/maintenances` / `PATCH` — valida `funcionarioId`: deve existir, estar ATIVO e ser da mesma empresa do sensor (403/404/422).
-- Erros Prisma globalmente mapeados: `P2002→409`, `P2003/P2014→409`, `P2025→404` (antes 500).
-- `paginated()` inclui `totalPages` (aditivo, sem quebra).
-- Swagger (`/docs`) atualizado: enums novos + 4 novas rotas.
+## 7. Como o frontend deve consumir
 
-## 9. Removidos/depreciados
+- `baseURL = /api` (OpenAPI `servers:[/api]`). Docs vivas: `GET /docs` + `GET /docs/openapi.json` (`docs.routes.ts`, montado em `/docs`).
+- Login → guarda `token` + `user{tipo,empresaId}`; envia `Authorization: Bearer <token>` em tudo exceto `/health,/auth/login,POST /readings,/docs`. Renova em `401`.
+- Navegação hierárquica obrigatória: `companies → sectors?empresaId → assets/devices?setorId → sensors?esp32Id/ativoId → readings/maintenances?sensorId`. Sem `setorId/sensorId` várias listas retornam `422`.
+- `POST /devices`: salvar `token` retornado imediatamente (não volta a aparecer). Exibir como segredo único.
+- `POST /readings` é só firmware (X-Token); frontend só faz `GET`.
+- `GET /companies/:id/details` (ADMIN) já entrega tela “Ver mais”; `GET /dashboard/admin-summary` (ADMIN) entrega cards globais — não calcular no client.
+- Tratar `meta` p/ paginar (`page/pageSize`, máx 100), `204` sem body, `422 fieldErrors`, `409` duplicidade (`email, cnpj, tag, espId, token, [esp32Id+sensorId]` → P2002).
+- CORS: configurar `CORS_ORIGIN` p/ origem do front (default `*` só dev); `express.json` limite `1mb`; rate-limit `100/min` default pode dar `429` em polling agressivo.
+- Rodar sem banco: `MOCK_MODE=true npm run dev` (ou `npm run dev:mock`); com banco: `npm run prisma:deploy && npm run seed && npm run dev`.
+- Simular ESP32: `npm run simulate:esp32` (`scripts/simulate-esp32.ts`, env `BASE_URL/ESP_TOKEN/ESP_ID/SENSOR_ID/INTERVAL_MS`).
 
-- Nomes `super_admin/admin_empresa/funcionario` removidos da API (respostas, validações, authorize).
-  Tokens JWT antigos com esses valores passam a receber 403. `isSuperAdmin` mantido como alias
-  interno de `isAdmin` (sem efeito na API).
+---
 
-## 10–11. Requests / Responses (+ exemplos reais)
+## 8. Limitações, inconsistências e riscos (não corrigidos, só registrados)
 
-Padrão sucesso: `{success:true,data}` (+`meta{total,page,pageSize,totalPages}` em listas);
-`201` criações, `204` sem corpo em deletes. Erro: `{success:false,error:{code,message,details?}}`.
+1. `GET /alerts` quebrado por design: `alert.controller.ts:6-8` chama `alertService.list()` sem `await/resposta`, service sempre lança `501`. Frontend deve tratar como indisponível/esconder.
+2. OpenAPI parcial: documenta só `health, auth, companies (list/post/get/details/users), users/:id/status, dashboard, sectors/, assets/, devices/, sensors/, readings, maintenances/, alerts`. Faltam `users CRUD completo, companies PATCH/DELETE/:id, sectors/:id + mutações, assets/:id, devices/:id, sensors/:id, maintenances/:id`. Não usar OpenAPI como lista completa de rotas.
+3. Schemas OpenAPI defasados: `Asset` omite `tipo,centroCusto,fotoUrl,manualUrl,descricao`; `Sensor` omite `descricao`; `Maintenance` omite `funcionarioId,abertoEm,concluidoEm`; `User` omite `criadoEm`; `Reading.id` como integer mas real é BigInt→Number.
+4. `POST /companies` sem checagem de empresa no service (só `authorize ADMIN` na rota) — ok hoje, frágil se rota mudar.
+5. `maintenances` sem `authorize` por papel: qualquer TECNICO autenticado com acesso ao sensor pode criar/editar/excluir chamados, inclusive atribuir `funcionarioId` de outra pessoa (desde que mesma empresa/ATIVO).
+6. `details` e `adminSummary` contam via `list({pageSize:1})` + N+1 (`company.service.ts`, `dashboard.service.ts`) — `details` de empresa grande pode ser lento; frontend deve cachear e evitar chamadas repetidas.
+7. `DELETE` físico em `users/companies/sectors/assets/devices/sensors/maintenances` (409 se FK, senão apaga). Só `users` tem inativação (`ATIVO/INATIVO`); demais sem soft-delete.
+8. `updateUser` parcial: trocar só `tipo` sem ajustar `empresaId/especialidade` passa no Zod e cai no service — frontend deve sempre enviar combinação completa ao trocar tipo.
+9. `X-Request-Id`, `helmet`, `rate-limit`, `requestLogger` globais — frontend deve propagar `X-Request-Id` se quiser correlação e respeitar `429`.
+10. Dupla fonte de verdade DB: `db/db.sql` + `prisma/schema.prisma` + `prisma/migrations` — divergência futura possível; `MOCK_MODE` diverge de tipos Prisma (ex. mock ignora FK reais).
+11. Sem paginação em `details/usersByCompany` agregados (traz até 10000) e sem filtros de data em `readings` (só `sensorId` + paginação) — gráficos de vazão precisarão paginar muito ou agregar no client.
 
-```json
-// ADMIN cria GESTOR → POST /api/users → 201
-{"nome":"Carlos","email":"carlos@email.com","senha":"senha12345","tipo":"GESTOR","empresaId":1}
-// → {"success":true,"data":{"id":9,"nome":"Carlos","email":"carlos@email.com","tipo":"GESTOR","especialidade":null,"status":"ATIVO","empresaId":1,"criadoEm":"..."}}
-
-// ADMIN cria TECNICO → POST /api/users → 201
-{"nome":"João","email":"joao@email.com","senha":"senha12345","tipo":"TECNICO","empresaId":1,"especialidade":"MECANICO"}
-
-// ADMIN cria ADMIN → POST /api/users → 201
-{"nome":"Novo Admin","email":"admin2@siva.com","senha":"senha12345","tipo":"ADMIN"}
-
-// Editar → PATCH /api/users/9 → 200  {"nome":"Carlos S.","empresaId":1}
-// Status → PATCH /api/users/9/status → 200  {"status":"INATIVO"}
-// Detalhes → GET /api/companies/1/details → 200
-{"success":true,"data":{"empresa":{"id":1,"nome":"...","cnpj":"..."},"funcionarios":[...],"setores":[...],"resumo":{"funcionarios":10,"setores":4,"ativos":6,"esp32":5,"sensores":20}}}
-// Dashboard → GET /api/dashboard/admin-summary → 200
-{"success":true,"data":{"nEmpresas":2,"nFuncionarios":5,"nSensores":3,"nEsp32":3,"funcionarios":{"total":5,"gestores":2,"tecnicos":2,"mecanicos":1,"eletricistas":1,"ativos":5,"inativos":0}}}
-// ESP32 → POST /api/devices {"setorId":1,"espId":"esp_04","descricao":"..."} → 201 (token SÓ aqui)
-{"success":true,"data":{"id":4,"setorId":1,"espId":"esp_04","token":"dev-...","descricao":"...","ultimoContato":null,"criadoEm":"..."}}
-```
-
-## 12. Autorização (resumo)
-
-ADMIN global; GESTOR/TECNICO restritos à própria empresa em todas as camadas. Front só esconde
-menus — a trava real é no back (testes cobrem cross-empresa 403, GESTOR criando usuário 403,
-dashboard por GESTOR 403, details de outra empresa 403).
-
-## 13–18. Fluxos
-
-- **Login:** `POST /login {email,senha}` → `{token,user}` → front guarda token, usa
-  `Authorization: Bearer`, chama `GET /me`, roteia por `tipo` (`/admin|/gestor|/tecnico`) e
-  `especialidade` quando TECNICO. Sem `/register`.
-- **Empresa:** `POST /companies {nome,cnpj?}` → `GET /companies` → `GET /:id/details` →
-  `GET /:id/users` → `PATCH /companies/:id` / `DELETE` (409 com vínculos).
-- **Usuário:** `POST /users` (ADMIN) → `PATCH /users/:id` → `PATCH /:id/status` → `DELETE` (409 com histórico; inativar é o caminho).
-- **ESP32:** `POST /devices {setorId,espId,descricao?}` → **copiar `token` da resposta** →
-  entregar `espId+token+sensor_id` à empresa → firmware `POST /api/readings` com `X-Token`.
-  GET/PATCH nunca retornam token. Sem regeneração nesta etapa.
-- **Sensor:** `POST /sensors {ativoId,esp32Id,sensorId,tag?,descricao?,ativoStatus?}` (exige
-  `ativo.setor == esp32.setor`, 422); `PATCH` edita `tag/descricao/ativoStatus`; sem token próprio.
-- **Infra:** `EMPRESA→SETOR→ATIVO` e `→ESP32→SENSOR` (inalterada).
-- **Dashboard ADMIN:** `GET /dashboard/admin-summary` (números reais do banco).
-- **Detalhes empresa:** `GET /companies/:id/details` (tela Ver mais) + `GET /:id/users` (aba funcionários).
-
-## 19–21. JWT / X-Token / HTTP / erros
-
-- Front: `Authorization: Bearer <JWT>` em tudo (dashboard). ESP32: `X-Token: <token>` só em
-  `POST /api/readings {esp_id,sensor_id,vazao>=0,setor?}`.
-- Status: `200 GET/PATCH` · `201 POST` · `204 DELETE` · `400` · `401 sem/inválido` ·
-  `403 sem permissão ou INATIVO` · `404` · `409 duplicidade/vínculo` · `422 validação` · `500`.
-- Duplicidades (email/CNPJ/tag/espId) → `409 CONFLICT`, nunca 500.
-
-## 22. Tabela final (endpoints REAIS)
-
-| Funcionalidade | Método | Endpoint | Auth | Permissão |
-|---|---|---|---|---|
-| Login | POST | `/api/auth/login` | Não | Público |
-| Me | GET | `/api/auth/me` | JWT | Autenticado ATIVO |
-| Dashboard | GET | `/api/dashboard/admin-summary` | JWT | ADMIN |
-| Empresas | GET | `/api/companies` | JWT | ADMIN todas; demais a própria |
-| Criar empresa | POST | `/api/companies` | JWT | ADMIN |
-| Detalhe empresa | GET | `/api/companies/:id` | JWT | Escopo empresa |
-| Detalhes empresa | GET | `/api/companies/:id/details` | JWT | ADMIN |
-| Funcionários empresa | GET | `/api/companies/:id/users` | JWT | ADMIN |
-| Editar empresa | PATCH | `/api/companies/:id` | JWT | ADMIN |
-| Excluir empresa | DELETE | `/api/companies/:id` | JWT | ADMIN (409 c/ vínculos) |
-| Listar usuários | GET | `/api/users?empresaId=&tipo=&status=` | JWT | ADMIN global; GESTOR própria |
-| Criar usuário | POST | `/api/users` | JWT | ADMIN |
-| Editar usuário | PATCH | `/api/users/:id` | JWT | ADMIN |
-| Status usuário | PATCH | `/api/users/:id/status` | JWT | ADMIN |
-| Excluir usuário | DELETE | `/api/users/:id` | JWT | ADMIN (409 c/ histórico) |
-| Setores | GET/POST/PATCH/DELETE | `/api/sectors[/:id]` | JWT | Leitura escopada; escrita ADMIN,GESTOR |
-| Ativos | GET/POST/PATCH/DELETE | `/api/assets[/:id]` | JWT | Leitura escopada (`?setorId=` obr.); escrita ADMIN,GESTOR |
-| Criar ESP32 | POST | `/api/devices` | JWT | ADMIN,GESTOR (token só aqui) |
-| Listar/ver ESP32 | GET | `/api/devices[/:id]` | JWT | Escopo (sem token) |
-| Criar sensor | POST | `/api/sensors` | JWT | ADMIN,GESTOR |
-| Listar/editar sensor | GET/PATCH/DELETE | `/api/sensors[/:id]` | JWT | Escopo; escrita ADMIN,GESTOR |
-| Leituras ESP32 | POST | `/api/readings` | X-Token | ESP32 |
-| Leituras dashboard | GET | `/api/readings?sensorId=` | JWT | Escopo |
-| Manutenções | GET/POST/PATCH/DELETE | `/api/maintenances[/:id]` | JWT | Escopo + funcionario validado |
-| Alertas | GET | `/api/alerts` | JWT | 501 (não implementado — "em breve") |
-| Health | GET | `/api/health` | Não | Público |
-
-## Não implementado (com motivo)
-
-- Regeneração de token ESP32: não exigida; fluxo atual (token único na criação) preservado.
-- Recuperação de senha/MFA/refresh: fora do escopo; troca via `PATCH /users/:id {senha}` (ADMIN).
-- Alertas: mantido 501 documentado, sem resposta falsa.
-- Desvio consciente da tabela-exemplo: escrita de infra (setores/ativos/devices/sensores)
-  permite `ADMIN,GESTOR` (não só ADMIN) — preserva comportamento existente e a autonomia do
-  GESTOR sobre a própria empresa (§37: não quebrar o que funciona).
-
-## Validação
-
-`typecheck` OK · `lint` 0 erros · `build` OK · **39/39 testes** (`tests/users-roles.test.ts`
-27 novos cobrindo §36 + 12 existentes preservados).
+Credenciais de teste (seed/mock): `admin@siva.local/senha123 (ADMIN)`, `carla.mendes@aquaplas.com/senha123 (GESTOR)`, `diego.ramos@aquaplas.com/senha123 (TECNICO MECANICO)`, ESP `esp_01/dev-token-esp01/sensor_01`.

@@ -7,17 +7,19 @@ export interface ListSensorsParams {
   pageSize?: number;
   esp32Id?: number | null;
   ativoId?: number | null;
+  empresaId?: number | null;
+  ativoStatus?: boolean | null;
 }
 
 /**
  * Operações de sensor.
  *
  * Contrato confirmado no back-end (`src/modules/sensors`):
- *  - `GET    /api/sensors`      → paginado, aceita `esp32Id` e `ativoId`
- *  - `GET    /api/sensors/:id`  → sensor
- *  - `POST   /api/sensors`      → cria (ADMIN, GESTOR)
- *  - `PATCH  /api/sensors/:id`  → edita (ADMIN, GESTOR) — sem `ativoId`/`esp32Id`/`sensorId`
- *  - `DELETE /api/sensors/:id`  → remove (ADMIN, GESTOR)
+ *  - `GET    /api/sensors?empresaId=&ativoId=&esp32Id=&ativoStatus=` → já escopado;
+ *  - `GET    /api/sensors/:id`  → sensor;
+ *  - `POST   /api/sensors`      → cria (ADMIN, GESTOR) — valida ativo, ESP32 e mesmo setor;
+ *  - `PATCH  /api/sensors/:id`  → edita (ADMIN, GESTOR) — `ativoId`/`esp32Id`/`sensorId` são imutáveis;
+ *  - `DELETE /api/sensors/:id`  → remove (ADMIN, GESTOR).
  */
 export const sensorService = {
   list(token: string, params: ListSensorsParams = {}): Promise<PaginatedResult<Sensor>> {
@@ -26,6 +28,10 @@ export const sensorService = {
       pageSize: params.pageSize,
       esp32Id: params.esp32Id ?? undefined,
       ativoId: params.ativoId ?? undefined,
+      empresaId: params.empresaId ?? undefined,
+      ativoStatus: params.ativoStatus === null || params.ativoStatus === undefined
+        ? undefined
+        : params.ativoStatus,
     };
     return httpClient.getPaginated<Sensor>('/sensors', { token, query });
   },

@@ -3,6 +3,7 @@ import type {
   ListOptions,
   ListResult,
 } from '../../interfaces/repository.interface.js';
+import { isInFilter, matchesIdFilter } from '../../utils/id-filter.js';
 import type { MockCollection } from './mock-collection.js';
 
 export interface MockRepositoryOptions<TEntity> {
@@ -44,9 +45,17 @@ export function createMockRepository<TEntity extends { id: number }, TCreateInpu
   };
 }
 
-function defaultMatch<TEntity>(item: TEntity, filter: Record<string, unknown>): boolean {
+export function defaultMatch<TEntity>(item: TEntity, filter: Record<string, unknown>): boolean {
   return Object.entries(filter).every(([key, value]) => {
     if (value === undefined) return true;
-    return (item as Record<string, unknown>)[key] === value;
+
+    const actual = (item as Record<string, unknown>)[key];
+
+    // Operador `{ in: [...] }` — mesmo contrato usado pelo Prisma (`where`).
+    if (isInFilter(value)) {
+      return matchesIdFilter(actual, value);
+    }
+
+    return actual === value;
   });
 }

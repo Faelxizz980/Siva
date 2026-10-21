@@ -8,10 +8,11 @@ import { deviceService } from '../services/device.service.js';
 export const deviceController = {
   list: asyncHandler(async (req: Request, res: Response) => {
     const { page, pageSize } = parsePagination(req);
-    const { items, total } = await deviceService.list(req.user!, Number(req.query.setorId), {
-      page,
-      pageSize,
-    });
+    const filter = {
+      setorId: req.query.setorId !== undefined ? Number(req.query.setorId) : undefined,
+      empresaId: req.query.empresaId !== undefined ? Number(req.query.empresaId) : undefined,
+    };
+    const { items, total } = await deviceService.list(req.user!, filter, { page, pageSize });
     paginated(res, items.map(toPublicDevice), { total, page, pageSize });
   }),
 

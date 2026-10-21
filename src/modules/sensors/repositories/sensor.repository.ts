@@ -9,6 +9,7 @@ import { createMockRepository } from '../../../shared/mock/create-mock-repositor
 import { sensors as sensorsMock } from '../../../shared/mock/mock-store.js';
 import type { Sensor } from '../entities/sensor.entity.js';
 import type { CreateSensorDTO, UpdateSensorDTO } from '../dtos/sensor.dtos.js';
+import { normalizeIdFilter } from '../../../utils/id-filter.js';
 
 export type SensorRepository = CrudRepository<Sensor, CreateSensorDTO, UpdateSensorDTO> & {
   findByDeviceAndSensorId(esp32Id: number, sensorId: string): Promise<Sensor | null>;
@@ -16,9 +17,11 @@ export type SensorRepository = CrudRepository<Sensor, CreateSensorDTO, UpdateSen
 
 function buildWhere(filter: Record<string, unknown>) {
   const where: Record<string, unknown> = {};
-  if (filter.id !== undefined) where.id = Number(filter.id);
-  if (filter.esp32Id !== undefined) where.esp32Id = Number(filter.esp32Id);
-  if (filter.ativoId !== undefined) where.ativoId = Number(filter.ativoId);
+  if (filter.id !== undefined) where.id = normalizeIdFilter(filter.id);
+  if (filter.esp32Id !== undefined) where.esp32Id = normalizeIdFilter(filter.esp32Id);
+  if (filter.ativoId !== undefined) where.ativoId = normalizeIdFilter(filter.ativoId);
+  if (filter.tag !== undefined) where.tag = filter.tag;
+  if (filter.ativoStatus !== undefined) where.ativoStatus = filter.ativoStatus;
   return where;
 }
 

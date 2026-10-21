@@ -9,6 +9,7 @@ import { createMockRepository } from '../../../shared/mock/create-mock-repositor
 import { maintenances as maintenancesMock } from '../../../shared/mock/mock-store.js';
 import type { Maintenance } from '../entities/maintenance.entity.js';
 import type { CreateMaintenanceDTO, UpdateMaintenanceDTO } from '../dtos/maintenance.dtos.js';
+import { normalizeIdFilter, normalizeListFilter } from '../../../utils/id-filter.js';
 
 export type MaintenanceRepository = CrudRepository<
   Maintenance,
@@ -19,7 +20,9 @@ export type MaintenanceRepository = CrudRepository<
 function buildWhere(filter: Record<string, unknown>) {
   const where: Record<string, unknown> = {};
   if (filter.id !== undefined) where.id = Number(filter.id);
-  if (filter.sensorId !== undefined) where.sensorId = Number(filter.sensorId);
+  if (filter.sensorId !== undefined) where.sensorId = normalizeIdFilter(filter.sensorId);
+  if (filter.status !== undefined) where.status = normalizeListFilter(filter.status);
+  if (filter.tipo !== undefined) where.tipo = filter.tipo;
   return where;
 }
 

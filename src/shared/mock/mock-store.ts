@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import { hashDeviceToken } from '../../utils/device-token.js';
 import { MockCollection } from './mock-collection.js';
 import type { Company } from '../../modules/companies/entities/company.entity.js';
 import type { User } from '../../modules/users/entities/user.entity.js';
@@ -131,7 +132,7 @@ function seed(): void {
   const espProducao = devices.create({
     setorId: producao.id,
     espId: 'esp_01',
-    token: 'dev-token-esp01',
+    tokenHash: hashDeviceToken('dev-token-esp01'),
     descricao: 'ESP32 fixado no quadro elétrico da produção.',
     ultimoContato: hoursAgo(0.1),
     criadoEm: hoursAgo(680),
@@ -139,7 +140,7 @@ function seed(): void {
   const espResfriamento = devices.create({
     setorId: resfriamento.id,
     espId: 'esp_02',
-    token: 'dev-token-esp02',
+    tokenHash: hashDeviceToken('dev-token-esp02'),
     descricao: 'ESP32 na casa de bombas do resfriamento.',
     ultimoContato: hoursAgo(0.5),
     criadoEm: hoursAgo(680),
@@ -147,7 +148,7 @@ function seed(): void {
   const espLimpeza = devices.create({
     setorId: limpeza.id,
     espId: 'esp_03',
-    token: 'dev-token-esp03',
+    tokenHash: hashDeviceToken('dev-token-esp03'),
     descricao: 'ESP32 na linha CIP.',
     ultimoContato: hoursAgo(2),
     criadoEm: hoursAgo(440),

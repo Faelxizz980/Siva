@@ -56,7 +56,7 @@ erDiagram
         int id PK
         int setor_id FK
         varchar50 esp_id UK
-        varchar255 token UK "valor esperado no header X-Token"
+        char64 token_hash UK "SHA-256 do token usado no header X-Token"
         varchar100 descricao "nullable"
         datetime ultimo_contato "nullable"
         datetime criado_em
@@ -161,12 +161,12 @@ Todo isolamento entre clientes (multi-tenant) deriva desta hierarquia: um recurs
 | `id` | `INT` | PK, auto-increment |
 | `setor_id` | `INT` | FK → `setor.id`, `NOT NULL` |
 | `esp_id` | `VARCHAR(50)` | `UNIQUE`, `NOT NULL` — identificador usado no payload/firmware |
-| `token` | `VARCHAR(255)` | `UNIQUE`, `NOT NULL` — valor esperado no header `X-Token` |
+| `token_hash` | `CHAR(64)` | `UNIQUE`, `NOT NULL` — SHA-256 do token usado no header `X-Token` |
 | `descricao` | `VARCHAR(100)` | nullable |
 | `ultimo_contato` | `DATETIME` | nullable — atualizado a cada leitura recebida (heartbeat) |
 | `criado_em` | `DATETIME` | default `CURRENT_TIMESTAMP` |
 
-⚠️ `token` é `UNIQUE` (evita colisão entre dispositivos) mas fica em **texto plano** no banco — ver [SECURITY.md](./SECURITY.md#credenciais-de-dispositivo-x-token).
+✅ `token_hash` é `UNIQUE` (evita colisão entre dispositivos) e armazena **apenas o SHA-256** do token — o valor em claro nunca é persistido (migration `002_device_token_hash.sql`). Ver [SECURITY.md](./SECURITY.md#credenciais-de-dispositivo-x-token).
 
 ### `sensor`
 

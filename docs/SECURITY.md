@@ -38,9 +38,19 @@ Este documento é deliberadamente honesto: lista o que está implementado **e** 
 
 ## Credenciais de dispositivo (X-Token)
 
-- ⚠️ **Gap**: o `token` do ESP32 fica em **texto plano** no banco (`esp32.token VARCHAR(255)`, comparado por igualdade direta) — diferente da senha do usuário. Um vazamento do banco expõe imediatamente todos os tokens de todos os dispositivos, prontos para uso. O ideal seria armazenar um hash (ex.: SHA-256, já que não precisa de custo alto tipo bcrypt para um token aleatório de alta entropia) e comparar o hash recebido.
-- Corrigido nesta etapa: a coluna `token` agora tem `UNIQUE` (antes não tinha — colisão de token entre dois dispositivos autenticaria um como o outro). Ver commit `fix: adiciona UNIQUE em esp32.token`.
-- O token não expira e não pode ser rotacionado via API (só recriando o dispositivo).
+- ✅ **Resolvido 2026-10-21**: o `token` do ESP32 não é mais gravado em texto plano. A coluna
+  passou a ser `esp32.token_hash CHAR(64)` (SHA-256 do token) e o token em claro **só é
+  devolvido na resposta de criação** (`POST /api/devices`). O `authenticateDevice` calcula o
+  hash do `X-Token` recebido e busca pelo hash — um vazamento do banco não permite mais forjar
+  um header válido. Migration: `db/migrations/002_device_token_hash.sql`.
+- O token é gerado com `randomBytes(24)` (`crypto`), em base64url — ~192 bits de entropia.
+  Antes era `Math.random()`, que é previsível. Prefixo `dev-` mantido para suporte.
+- O hash também é sensível: `toPublicDevice` o remove da representação pública, então nem
+  o hash sai do back-end.
+- O token não expira e não pode ser rotacionado via API (só recriando o dispositivo). A
+  edição de um dispositivo **nunca** gera um token novo.
+- Limitação restante: o `X-Token` é de conhecimento do dispositivo — quem o obtiver pode
+  injetar leituras. Uma rotação programável e expiração continuam fora do escopo.
 
 ## Segredos (JWT_SECRET)
 
