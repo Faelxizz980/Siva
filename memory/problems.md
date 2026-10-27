@@ -34,8 +34,12 @@ Base: `docs/analise-regras-negocio.md` §19. Status único: Pendente.
 ## PROB-006 — Token ESP32 em texto plano + `JWT_SECRET` default
 - Descrição: `device.token` gravado sem hash; secret com fallback inseguro.
 - Impacto: vazamento de token/secret compromete ingestão e sessões.
-- Status: Pendente. Parcial 2026-10-13: INATIVO bloqueado no login/`/me`, mas JWT emitido
+- Status: Parcial 2026-10-13: INATIVO bloqueado no login/`/me`, mas JWT emitido
   antes da inativação segue válido até expirar (sem revogação — stateless).
+  **Token do ESP32 resolvido em 2026-10-21**: `esp32.token` → `esp32.token_hash` (SHA-256),
+  gerado com `randomBytes(24)`, devolvido em claro **só na criação** e nunca mais exposto
+  (migration `db/migrations/002_device_token_hash.sql`). O `JWT_SECRET` com default inseguro
+  **segue pendente**.
 
 ## PROB-007 — `db.sql` × schema sem migration
 - Descrição: duas fontes de verdade, sem migration inicial unificada.
@@ -55,7 +59,10 @@ Base: `docs/analise-regras-negocio.md` §19. Status único: Pendente.
   torna `setorId` obrigatório.
 - Impacto: toda seleção de ativo/ESP32 no front vira cascata `empresa → setor → ativo/ESP32`
   (N+1). Para resolver nomes na listagem de sensores é preciso carregar o catálogo inteiro.
-- Status: Pendente (lacuna do back-end, registrada 2026-10-21).
+- Status: **Resolvido 2026-10-21** — `setorId` passou a ser opcional e `?empresaId=` foi
+  adicionado a `GET /assets`, `GET /devices` e `GET /sensors`, sempre escopado pela empresa do
+  usuário (`assertSameCompany` para quem não é ADMIN). O filtro `{ in: [...] }` foi unificado
+  entre Prisma e mock (`src/utils/id-filter.ts`).
 
 ## PROB-010 — Empresa sem inativação
 - Descrição: só existe `DELETE` físico para empresas; usuários têm `PATCH /:id/status`.

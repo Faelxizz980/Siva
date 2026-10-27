@@ -41,22 +41,23 @@ Este documento complementa a documentação interativa: com o servidor rodando, 
 | `PATCH` | `/api/users/:id/status` | Bearer | `ADMIN` | Ativa/inativa (`{"status":"ATIVO"\|"INATIVO"}`) |
 | `DELETE` | `/api/users/:id` | Bearer | `ADMIN` | Remove usuário (409 se houver histórico) |
 | `GET` | `/api/dashboard/admin-summary` | Bearer | `ADMIN` | Contadores reais (empresas, funcionários, sensores, ESP32) |
-| `GET` | `/api/sectors` | Bearer | — | Lista setores (`?empresaId=`) |
+| `GET` | `/api/dashboard/overview` | Bearer | — | Painel operacional: consumo, sensores, manutenções, ESP32 e atividades (`?empresaId=` p/ ADMIN) |
+| `GET` | `/api/sectors` | Bearer | — | Lista setores (`?empresaId=`; escopado pela empresa do ator) |
 | `GET` | `/api/sectors/:id` | Bearer | — | Detalhe de um setor |
 | `POST` | `/api/sectors` | Bearer | `ADMIN`, `GESTOR` | Cria setor |
 | `PATCH` | `/api/sectors/:id` | Bearer | `ADMIN`, `GESTOR` | Edita setor |
-| `DELETE` | `/api/sectors/:id` | Bearer | `ADMIN`, `GESTOR` | Remove setor |
-| `GET` | `/api/assets` | Bearer | — | Lista ativos (`?setorId=`, obrigatório) |
+| `DELETE` | `/api/sectors/:id` | Bearer | `ADMIN`, `GESTOR` | Remove setor (409 se houver ativos/ESP32) |
+| `GET` | `/api/assets` | Bearer | — | Lista ativos (`?setorId=` ou `?empresaId=` ou `?criticidade=`; escopado pela empresa do ator) |
 | `GET` | `/api/assets/:id` | Bearer | — | Detalhe de um ativo |
-| `POST` | `/api/assets` | Bearer | `ADMIN`, `GESTOR` | Cria ativo |
-| `PATCH` | `/api/assets/:id` | Bearer | `ADMIN`, `GESTOR` | Edita ativo |
+| `POST` | `/api/assets` | Bearer | `ADMIN`, `GESTOR` | Cria ativo (setor validado contra a empresa do ator) |
+| `PATCH` | `/api/assets/:id` | Bearer | `ADMIN`, `GESTOR` | Edita ativo (troca de setor só se os sensores permitirem) |
 | `DELETE` | `/api/assets/:id` | Bearer | `ADMIN`, `GESTOR` | Remove ativo |
-| `GET` | `/api/devices` | Bearer | — | Lista ESP32s (`?setorId=`, obrigatório; token nunca aparece) |
+| `GET` | `/api/devices` | Bearer | — | Lista ESP32s (`?setorId=` ou `?empresaId=`; escopado; traz `online`) |
 | `GET` | `/api/devices/:id` | Bearer | — | Detalhe de um ESP32 (sem o token) |
-| `POST` | `/api/devices` | Bearer | `ADMIN`, `GESTOR` | Cria ESP32 — **token aparece só nesta resposta** |
-| `PATCH` | `/api/devices/:id` | Bearer | `ADMIN`, `GESTOR` | Edita descrição do ESP32 |
+| `POST` | `/api/devices` | Bearer | `ADMIN`, `GESTOR` | Cria ESP32 — **token aparece só nesta resposta** (o banco guarda o hash) |
+| `PATCH` | `/api/devices/:id` | Bearer | `ADMIN`, `GESTOR` | Edita ESP32 (descrição, esp_id, setor — nunca o token) |
 | `DELETE` | `/api/devices/:id` | Bearer | `ADMIN`, `GESTOR` | Remove ESP32 |
-| `GET` | `/api/sensors` | Bearer | — | Lista sensores (`?esp32Id=` e/ou `?ativoId=`) |
+| `GET` | `/api/sensors` | Bearer | — | Lista sensores (`?esp32Id=` `?ativoId=` `?empresaId=` `?ativoStatus=`) |
 | `GET` | `/api/sensors/:id` | Bearer | — | Detalhe de um sensor |
 | `POST` | `/api/sensors` | Bearer | `ADMIN`, `GESTOR` | Cria sensor (ativo + esp32 do mesmo setor) |
 | `PATCH` | `/api/sensors/:id` | Bearer | `ADMIN`, `GESTOR` | Edita sensor |
@@ -238,6 +239,56 @@ Se `ativo #1` for do setor 1 e `esp32 #3` for do setor 2:
   }
 }
 ```
+
+## 7. Painel operacional (agregações do dashboard)
+
+```http
+GET /api/dashboard/overview
+Authorization: Bearer <jwt>
+```
+
+```json
+200 OK
+{
+  "success": true,
+  "data": {
+    "periodo": {
+      "inicio": "2026-10-20T12:00:00.000Z",
+      "fim": "2026-10-21T12:00:00.000Z"
+    },
+    "consumoAtual": { "valor": 20.7, "unidade": "L/min", "atualizadoEm": "2026-10-21T11:58:00.000Z" },
+    "consumoDiario": { "valor": 28635.6, "unidade": "L", "atualizadoEm": null },
+    "sensores": { "ativos": 2, "total": 3, "semLeituraNoPeriodo": 0 },
+    "alertas": { "disponivel": false, "total": null },
+    "manutencoes": { "pendentes": 1, "total": 2 },
+    "esp32": { "online": 1, "total": 3 },
+    "atividades": [
+      {
+        "id": "leitura-25",
+        "tipo": "leitura",
+        "titulo": "Leitura de vazão registrada",
+        "descricao": "SN-PRD-001 reportou 12.5 L/min",
+        "occurredAt": "2026-10-21T11:58:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+Regras de cálculo:
+
+- **Escopo:** a empresa do usuário autenticado. `ADMIN` pode filtrar por `?empresaId=`; sem o
+  parâmetro, vê o consolidado de todas as empresas. `GESTOR`/`TECNICO` com `empresaId` de
+  outra empresa recebem `403`.
+- **Consumo atual (L/min):** soma da última leitura de cada sensor **ativo** que reportou
+  dentro das últimas 24 h. Sensores sem leitura no período ficam de fora e são sinalizados em
+  `sensores.semLeituraNoPeriodo`.
+- **Consumo diário (L):** integração trapezoidal da série de leituras nas últimas 24 h
+  (`vazao × Δt`). A leitura mais antiga do período é usada como base do primeiro intervalo.
+- **Alertas:** `alertas.disponivel` é `false` e `total` é `null` — o módulo de detecção ainda
+  responde `501`. A interface exibe estado vazio; nenhum número é inventado.
+- **Atividades:** eventos efetivamente registrados (leituras, manutenções abertas e dispositivos
+  que reportaram), ordenados do mais recente para o mais antigo.
 
 ## Testando sem escrever código
 

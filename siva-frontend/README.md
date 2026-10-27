@@ -1,6 +1,7 @@
 # SIVA — Front-end
 
-Front-end público do SIVA (página inicial), autenticação e área administrativa integrada à API do back-end.
+Front-end público do SIVA (página inicial), autenticação, área administrativa e painel
+operacional — todos ligados à API real do back-end.
 
 ## Stack
 
@@ -12,7 +13,7 @@ Front-end público do SIVA (página inicial), autenticação e área administrat
 | Tailwind CSS | 4 (`@tailwindcss/vite`) |
 | React Router | 7 |
 | Lucide React | 1 (ícones) |
-| Motion | 13 (animações pontuais: modal e cards do dashboard) |
+| Motion | 13 (CountUp dos indicadores e lista animada de atividades) |
 | Fontsource | Inter (texto) + Manrope (títulos) |
 | Oxlint | lint |
 
@@ -39,11 +40,11 @@ cp .env.example .env
 
 ### Credenciais de teste (modo mock do back-end)
 
-| Perfil | E-mail | Senha |
-|---|---|---|
-| Administrador | `super@siva.com` | `senha123` |
-| Gestor | `carla.mendes@aquaplas.com` | `senha123` |
-| Técnico | `diego.ramos@aquaplas.com` | `senha123` |
+| Perfil | E-mail | Senha | Acesso |
+|---|---|---|---|
+| Administrador | `super@siva.com` | `senha123` | `/admin` + `/painel` |
+| Gestor | `carla.mendes@aquaplas.com` | `senha123` | `/painel` |
+| Técnico | `diego.ramos@aquaplas.com` | `senha123` | `/painel` (somente leitura) |
 
 ## Scripts
 
@@ -60,13 +61,16 @@ npm run preview   # serve o build de produção
 |---|---|---|
 | `/` | público | Página inicial institucional |
 | `/login` | público | Autenticação |
-| `/admin` | ADMIN | Dashboard com o resumo da plataforma |
-| `/admin/empresas` | ADMIN | CRUD de empresas + detalhes (`/admin/empresas/:id`) |
-| `/admin/usuarios` | ADMIN | CRUD de usuários, ativação/inativação e filtros |
-| `/admin/sensores` | ADMIN | CRUD de sensores e filtros em cascata |
+| `/admin` | ADMIN | Dashboard administrativo, Empresas, Usuários |
+| `/painel` | qualquer autenticado | Dashboard operacional (consumo, atividades) |
+| `/painel/setores` | qualquer autenticado | Setores da empresa + ativos do setor |
+| `/painel/ativos` | qualquer autenticado | Ativos, com vínculo por setor |
+| `/painel/esp32` | qualquer autenticado | Dispositivos, comunicação e fluxo do token |
+| `/painel/sensores` | qualquer autenticado | Sensores, ativação e estado de comunicação |
 
-A proteção de rota (`<RequireAdmin>`) é apenas UX: **a autorização real é sempre
-validada no back-end** (RBAC por `tipo` + isolamento multiempresa).
+O guard de rota (`<RequireAdmin>` / `<RequireAuthenticated>`) é apenas UX: **a autorização
+real é sempre validada no back-end** (RBAC por `tipo` + isolamento multiempresa). O front
+esconde as ações que o servidor recusaria (ex.: `TECNICO` não vê botões de escrita).
 
 ## Contrato de autenticação
 
@@ -84,44 +88,60 @@ Confirmado em `../src/modules/auth` (back-end):
 Não há cookie de sessão, refresh token nem logout no servidor: o front-end guarda o
 JWT em `localStorage` (chave `siva.auth.session`) e o descarta no logout.
 
-## Endpoints consumidos pela área administrativa
+## Endpoints consumidos
 
 | Recurso | Endpoints | Permissão |
 |---|---|---|
-| Dashboard | `GET /api/dashboard/admin-summary` | ADMIN |
-| Empresas | `GET /api/companies`, `GET /api/companies/:id`, `GET /api/companies/:id/details`, `POST`, `PATCH /:id`, `DELETE /:id` | leitura: autenticado · escrita: ADMIN |
-| Usuários | `GET /api/users` (filtros `empresaId`, `tipo`, `status`), `GET /:id`, `POST`, `PATCH /:id`, `PATCH /:id/status`, `DELETE /:id` | leitura: ADMIN/GESTOR · escrita: ADMIN |
-| Sensores | `GET /api/sensors` (filtros `esp32Id`, `ativoId`), `GET /:id`, `POST`, `PATCH /:id`, `DELETE /:id` | leitura: autenticado · escrita: ADMIN/GESTOR |
-| Apoio | `GET /api/sectors?empresaId`, `GET /api/assets?setorId`, `GET /api/devices?setorId` | autenticado |
+| Dashboard | `GET /api/dashboard/overview` (`?empresaId=`), `GET /api/dashboard/admin-summary` | overview: autenticado · admin-summary: ADMIN |
+| Setores | `GET /api/sectors?empresaId=`, `GET /:id`, `POST`, `PATCH /:id`, `DELETE /:id` | leitura: autenticado · escrita: ADMIN, GESTOR |
+| Ativos | `GET /api/assets?empresaId=&setorId=&criticidade=`, `GET /:id`, `POST`, `PATCH /:id`, `DELETE /:id` | leitura: autenticado · escrita: ADMIN, GESTOR |
+| ESP32 | `GET /api/devices?empresaId=&setorId=`, `GET /:id`, `POST`, `PATCH /:id`, `DELETE /:id` | leitura: autenticado · escrita: ADMIN, GESTOR |
+| Sensores | `GET /api/sensors?empresaId=&ativoId=&esp32Id=&ativoStatus=`, `GET /:id`, `POST`, `PATCH /:id`, `DELETE /:id` | leitura: autenticado · escrita: ADMIN, GESTOR |
+| Empresas / Usuários | `GET/POST/PATCH/DELETE /api/companies`, `/api/users`, `PATCH /api/users/:id/status` | ver `docs/API.md` |
 
-Regras de negócio replicadas no front-end (o back-end continua sendo a fonte da verdade):
+Regras de negócio replicadas no front (o back-end continua sendo a fonte da verdade):
 - `ADMIN` → sem empresa e sem especialidade;
 - `GESTOR` → empresa obrigatória, sem especialidade;
 - `TECNICO` → empresa e especialidade obrigatórias;
-- e-mail duplicado → `409`; empresa/usuário com vínculos → `409` (usar inativação).
+- e-mail duplicado → `409`; recursos com vínculos → `409` (usar inativação quando existir).
+
+## Token do ESP32
+
+- O token é **gerado pelo servidor** (`randomBytes(24)`, ~192 bits) e devolvido **uma única
+  vez**, na resposta de criação.
+- O banco guarda apenas o **SHA-256** do token (`esp32.token_hash`); o hash nunca sai da API.
+- A tela de ESP32 exibe o token em um diálogo com botão de copiar e o aviso de exibição única.
+  Ao fechar, o valor sai do estado — a edição de um dispositivo **não** gera token novo.
+- Listagens e consultas **nunca** trazem o token (nem o hash).
+
+## Estado de comunicação
+
+- `online` é calculado pelo back-end a partir de `ultimoContato` (janela de 10 minutos).
+- "Estar cadastrado" ≠ "estar online": um sensor pode estar **ativo** com o ESP32 **offline**.
+  As duas informações aparecem separadas na interface.
 
 ## Estrutura
 
 ```text
 src/
-  components/   # brand (logo) e ui (Button, DataTable, Modal, FormField, ...)
+  components/   # brand (logo) e ui (Button, DataTable, Modal, FormField, Pagination, ...)
   config/       # env (URL da API)
   features/
-    admin/      # área administrativa (layout, guard e telas)
-      companies/  dashboard/  guards/  layout/  sensors/  users/
+    admin/      # área administrativa (layout, guard, dashboard, empresas, usuários)
     auth/       # contexto, hooks, componentes e persistência da sessão
     landing/    # seções da página inicial
-  hooks/        # useAsyncData
+    panel/      # área operacional (layout, guard, dashboard, setores, ativos, esp32, sensores)
+  hooks/        # use-async-data, use-count-up
   pages/        # LandingPage, LoginPage, ForbiddenPage, NotFoundPage
   services/
     api/        # cliente HTTP (fetch + normalização de erro)
-    auth/ companies/ users/ sensors/ dashboard/ catalog/
+    auth/ assets/ catalog/ companies/ dashboard/ devices/ sectors/ sensors/ users/
   types/        # contratos da API
   utils/        # cn, formatação pt-BR
 ```
 
-A área administrativa é carregada sob demanda (`React.lazy`), isolando `motion` e as
-tabelas do bundle público.
+A área administrativa e a operacional são carregadas sob demanda (`React.lazy`), isolando as
+tabelas e as animações do bundle público.
 
 ## Identidade visual
 
@@ -147,6 +167,6 @@ A escala `siva-50…950` deriva as superfícies escuras e neutras.
 ## Observações de operação
 
 - O back-end limita a **100 requisições por minuto** por IP (`RATE_LIMIT_MAX`).
-  A UI trata o `429` com mensagem amigável e botão desabilitado durante o envio.
+  A UI trata o `429` com mensagem própria e botão desabilitado durante o envio.
 - O servidor de produção precisa de fallback de SPA (redirecionar rotas desconhecidas
   para `index.html`).
