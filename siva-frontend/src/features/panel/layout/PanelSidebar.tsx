@@ -7,14 +7,66 @@ import { cn } from '../../../utils/cn';
 import { useAuth } from '../../auth/hooks/use-auth';
 import { USER_TYPE_LABELS } from '../../auth/user-labels';
 import { PANEL_NAV_ITEMS } from './panel-navigation';
+import type { PanelNavItem } from './panel-navigation';
+import { ADMIN_NAV_ITEMS } from '../../admin/layout/admin-navigation';
+import type { AdminNavItem } from '../../admin/layout/admin-navigation';
 
 interface PanelSidebarProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+type SidebarNavEntry = PanelNavItem | AdminNavItem;
+
+function SidebarLink({ item, onClose }: { item: SidebarNavEntry; onClose: () => void }) {
+  return (
+    <NavLink
+      to={item.to}
+      end={item.end}
+      onClick={onClose}
+      className={({ isActive }) =>
+        cn(
+          'flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors',
+          isActive
+            ? 'bg-dodger-blue/15 text-white ring-1 ring-inset ring-dodger-blue/40'
+            : 'text-slate-300 hover:bg-white/5 hover:text-white',
+        )
+      }
+    >
+      {({ isActive }) => (
+        <>
+          <item.icon
+            className={cn(
+              'mt-0.5 size-4 shrink-0',
+              isActive ? 'text-cool-sky' : 'text-slate-400',
+            )}
+            aria-hidden="true"
+          />
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold">{item.label}</span>
+            <span className="mt-0.5 block text-xs text-slate-400">{item.description}</span>
+          </span>
+        </>
+      )}
+    </NavLink>
+  );
+}
+
 export function PanelSidebar({ isOpen, onClose }: PanelSidebarProps) {
   const { user, signOut } = useAuth();
+
+  /**
+   * Só o ADMIN transita entre a área operacional e a administrativa — sem este
+   * grupo, entrar em "Painel operacional" remove Dashboard/Empresas/Usuários
+   * do menu e não há como voltar. O item "Painel operacional" é omitido do
+   * grupo porque a rota /painel já é o item raiz do menu acima (evita dois
+   * itens ativos para a mesma rota). As rotas administrativas continuam
+   * protegidas por <RequireAdmin>; GESTOR e TÉCNICO nunca veem este grupo.
+   */
+  const adminItems =
+    user?.tipo === 'ADMIN'
+      ? ADMIN_NAV_ITEMS.filter((item) => item.to !== '/painel')
+      : [];
 
   return (
     <>
@@ -51,38 +103,25 @@ export function PanelSidebar({ isOpen, onClose }: PanelSidebarProps) {
           <ul className="space-y-1">
             {PANEL_NAV_ITEMS.map((item) => (
               <li key={item.to}>
-                <NavLink
-                  to={item.to}
-                  end={item.end}
-                  onClick={onClose}
-                  className={({ isActive }) =>
-                    cn(
-                      'flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors',
-                      isActive
-                        ? 'bg-dodger-blue/15 text-white ring-1 ring-inset ring-dodger-blue/40'
-                        : 'text-slate-300 hover:bg-white/5 hover:text-white',
-                    )
-                  }
-                >
-                  {({ isActive }) => (
-                    <>
-                      <item.icon
-                        className={cn(
-                          'mt-0.5 size-4 shrink-0',
-                          isActive ? 'text-cool-sky' : 'text-slate-400',
-                        )}
-                        aria-hidden="true"
-                      />
-                      <span className="min-w-0">
-                        <span className="block text-sm font-semibold">{item.label}</span>
-                        <span className="mt-0.5 block text-xs text-slate-400">{item.description}</span>
-                      </span>
-                    </>
-                  )}
-                </NavLink>
+                <SidebarLink item={item} onClose={onClose} />
               </li>
             ))}
           </ul>
+
+          {adminItems.length > 0 ? (
+            <div className="mt-4 border-t border-white/10 pt-4">
+              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Área administrativa
+              </p>
+              <ul className="space-y-1">
+                {adminItems.map((item) => (
+                  <li key={item.to}>
+                    <SidebarLink item={item} onClose={onClose} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </nav>
 
         <div className="border-t border-white/10 px-3 py-4">
