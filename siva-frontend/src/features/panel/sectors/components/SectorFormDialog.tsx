@@ -62,16 +62,24 @@ function SectorFormDialogBody({
       return;
     }
 
+    if (!isEditing && (!empresaId || empresaId <= 0)) {
+      setFormError('Selecione uma empresa no filtro do painel antes de cadastrar o setor.');
+      return;
+    }
+
     setErrors({});
     setFormError(null);
     setIsSaving(true);
 
     try {
-      await onSubmit(
-        isEditing
-          ? { nome: trimmed }
-          : { nome: trimmed, empresaId: empresaId ?? 0 },
-      );
+      if (isEditing) {
+        await onSubmit({ nome: trimmed });
+      } else {
+        if (!empresaId || empresaId <= 0) {
+          throw new Error('Selecione uma empresa no filtro do painel antes de cadastrar o setor.');
+        }
+        await onSubmit({ nome: trimmed, empresaId });
+      }
     } catch (error: unknown) {
       setFormError(error instanceof Error ? error.message : 'Não foi possível salvar o setor.');
     } finally {

@@ -32,8 +32,8 @@ sequenceDiagram
   ```json
   { "id": 2, "email": "carla.mendes@aquaplas.com", "tipo": "GESTOR", "empresaId": 1, "iat": ..., "exp": ... }
   ```
-- `authenticateUser` (em [`auth.middleware.ts`](../src/middlewares/auth.middleware.ts)) lê o header `Authorization`, exige o prefixo `Bearer `, valida a assinatura e a expiração, e popula `req.user` com o payload decodificado. Qualquer falha vira `401 UNAUTHORIZED` — a mensagem não distingue "token expirado" de "token inválido" de propósito (não dar pista de qual seria o próximo passo de um ataque).
-- Não há armazenamento de sessão no servidor: é um JWT stateless clássico. Consequência direta: **não existe logout no backend** (o cliente simplesmente descarta o token) e **não existe revogação de token antes da expiração** — ver limitação em [SECURITY.md](./SECURITY.md#tokens-jwt-sem-revogação).
+- `authenticateUser` (em [`auth.middleware.ts`](../src/middlewares/auth.middleware.ts)) lê o header `Authorization`, exige o prefixo `Bearer `, valida assinatura e expiração, consulta o usuário no banco e popula `req.user` com os dados atuais. Token inválido/expirado ou usuário removido retorna `401`; usuário inativo retorna `403`.
+- Não há armazenamento de sessão no servidor: é um JWT stateless clássico. O logout descarta o token no cliente. Em cada requisição protegida, o back-end consulta o usuário atual para aplicar status, papel e empresa vigentes; usuários excluídos ou inativos são bloqueados e alterações de papel/empresa têm efeito imediato. Não há blacklist nem revogação geral por troca de senha — ver [SECURITY.md](./SECURITY.md#tokens-jwt-sem-revogação).
 
 ## Autorização por papel (roles)
 

@@ -69,7 +69,7 @@ Este documento é deliberadamente honesto: lista o que está implementado **e** 
 
 ## Tokens JWT sem revogação
 
-- Como é stateless, um JWT roubado continua válido até expirar (`JWT_EXPIRES_IN`, default 8h), mesmo que a senha do usuário seja trocada depois. Não há blacklist/allowlist de tokens nem versionamento de sessão (`tokenVersion` no usuário, por exemplo, invalidaria tokens antigos ao trocar a senha). 🚧 Não implementado nesta etapa.
+- Não há blacklist/allowlist de tokens nem versionamento de sessão (`tokenVersion` no usuário, por exemplo, invalidaria tokens antigos ao trocar a senha). A cada requisição protegida, o back-end relê o usuário e aplica status, papel e empresa atuais; excluir ou inativar a conta bloqueia os JWTs existentes, e mudanças de papel/empresa são imediatas. Troca de senha, por si só, não invalida tokens já emitidos. Logout continua sendo apenas o descarte do token no cliente.
 
 ## Logs e auditoria
 

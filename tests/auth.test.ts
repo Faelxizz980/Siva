@@ -16,6 +16,15 @@ describe('POST /api/auth/login', () => {
     expect(response.body.data.user.senha).toBeUndefined();
   });
 
+  it('normaliza espaços e maiúsculas no e-mail de login', async () => {
+    const response = await request(app)
+      .post('/api/auth/login')
+      .send({ email: '  CARLA.MENDES@AQUAPLAS.COM  ', senha: 'senha123' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.user.email).toBe('carla.mendes@aquaplas.com');
+  });
+
   it('rejeita senha incorreta com 401', async () => {
     const response = await request(app)
       .post('/api/auth/login')

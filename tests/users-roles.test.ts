@@ -208,12 +208,21 @@ describe('USUÁRIOS (somente ADMIN escreve)', () => {
   });
 
   it('inativa usuário e login passa a falhar', async () => {
+    const activeLogin = await login('tec.ele@aquaplas.com');
+    expect(activeLogin.status).toBe(200);
+    const activeToken = activeLogin.body.data.token;
+
     const statusRes = await request(app)
       .patch(`/api/users/${tecnicoEletricistaId}/status`)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ status: 'INATIVO' });
     expect(statusRes.status).toBe(200);
     expect(statusRes.body.data.status).toBe('INATIVO');
+
+    const blockedRequest = await request(app)
+      .get('/api/sectors')
+      .set('Authorization', `Bearer ${activeToken}`);
+    expect(blockedRequest.status).toBe(403);
 
     const attempt = await login('tec.ele@aquaplas.com');
     expect([401, 403]).toContain(attempt.status);
@@ -226,6 +235,11 @@ describe('USUÁRIOS (somente ADMIN escreve)', () => {
 
     const okLogin = await login('tec.ele@aquaplas.com');
     expect(okLogin.status).toBe(200);
+
+    const reactivatedTokenRequest = await request(app)
+      .get('/api/sectors')
+      .set('Authorization', `Bearer ${activeToken}`);
+    expect(reactivatedTokenRequest.status).toBe(200);
   });
 
   it('GESTOR não altera status (403)', async () => {

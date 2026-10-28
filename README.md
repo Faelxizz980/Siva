@@ -113,7 +113,7 @@ para todos): `super@siva.com` (super_admin), `carla.mendes@aquaplas.com`
 ```bash
 cp .env.example .env        # ajuste DATABASE_URL/JWT_SECRET se necessário
 npm run prisma:migrate      # cria as tabelas a partir de prisma/schema.prisma
-npm run seed                # popula um usuário super_admin e uma empresa de exemplo
+npm run seed                # exige senhas SEED_* distintas no .env; popula os usuários de exemplo
 npm run dev
 ```
 

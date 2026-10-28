@@ -3,11 +3,18 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { ForbiddenError, UnauthorizedError } from '../shared/errors/app-error.js';
 import type { AuthenticatedUser, AuthenticatedDevice } from '../types/express.js';
+import { createUserRepository } from '../modules/users/repositories/user.repository.js';
 import { findDeviceByTokenHash } from '../modules/devices/repositories/device.repository.js';
 import { hashDeviceToken } from '../utils/device-token.js';
 
+const userRepository = createUserRepository();
+
 /** Autentica usuários do dashboard via `Authorization: Bearer <jwt>`. */
-export function authenticateUser(req: Request, _res: Response, next: NextFunction): void {
+export async function authenticateUser(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+): Promise<void> {
   const header = req.headers.authorization;
   const token = header?.startsWith('Bearer ') ? header.slice(7) : undefined;
 
@@ -15,12 +22,26 @@ export function authenticateUser(req: Request, _res: Response, next: NextFunctio
     throw new UnauthorizedError('Token de autenticação ausente.');
   }
 
+  let claims: AuthenticatedUser;
   try {
-    req.user = jwt.verify(token, env.JWT_SECRET) as AuthenticatedUser;
-    next();
+    claims = jwt.verify(token, env.JWT_SECRET) as AuthenticatedUser;
   } catch {
     throw new UnauthorizedError('Token de autenticação inválido ou expirado.');
   }
+
+  const user = await userRepository.findById(claims.id);
+  if (!user) throw new UnauthorizedError('Token de autenticação inválido ou expirado.');
+  if (user.status === 'INATIVO') {
+    throw new ForbiddenError('Usuário inativo. Entre em contato com o administrador.');
+  }
+
+  req.user = {
+    id: user.id,
+    email: user.email,
+    tipo: user.tipo,
+    empresaId: user.empresaId,
+  };
+  next();
 }
 
 export function authorize(...allowed: AuthenticatedUser['tipo'][]) {

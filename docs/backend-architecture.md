@@ -133,7 +133,7 @@ Duas autenticações separadas, nunca misturadas (`src/middlewares/auth.middlewa
 - Dashboard (humanos): `Authorization: Bearer <JWT>`.
   - `POST /api/auth/login {email, senha}` público → `bcrypt.compare` → `{ token, user }`. HS256, `JWT_SECRET`/`JWT_EXPIRES_IN`.
   - `GET /api/auth/me` retorna perfil.
-  - `authenticateUser`: JWT inválido/ausente → `401` genérico. Stateless, sem refresh/revogação/logout [NECESSÁRIO IMPLEMENTAR] se exigido.
+  - `authenticateUser`: valida o JWT e relê status, papel e empresa no banco por requisição; token inválido/ausente ou usuário removido → `401`, usuário inativo → `403`. Sem refresh, blacklist geral ou logout no servidor.
 - Firmware (ESP32): `X-Token: <token>`, só em `POST /api/readings`.
   - `authenticateDevice` → `findByToken` → `req.device {id, espId, setorId}`. Token gerado no `POST /api/devices`, exibido só nessa resposta, sem expiração, armazenado em texto plano [NECESSITA DEFINIÇÃO — ideal hash]. `esp_id` do body deve igualar dono do token senão `403`; `sensor_id` inexistente → `404`. Cada ingestão faz `touchContact` (`ultimoContato=now`).
 - Autorização: `authorize(...tipos)` na rota + escopo por empresa no service. Sem auto-registro (só admin cria usuário), sem reset por e-mail/MFA [NECESSÁRIO IMPLEMENTAR] se exigido.

@@ -183,7 +183,7 @@ Empresa Vendedora
 
 ## 13. Segurança
 
-- Cliente×cliente `[EXISTENTE]`: `assertSameCompany` + `?? -1`. JWT stateless atrasa revogação até expirar.
+- Cliente×cliente `[EXISTENTE]`: `assertSameCompany` + `?? -1`. O middleware relê status, papel e empresa do usuário a cada requisição; excluir/inativar bloqueia tokens existentes. Troca de senha não revoga tokens.
 - `company.service create/update/remove` sem `actor` (`company.service.ts:23-35`) — defesa só na rota.
 - `maintenances` sem `authorize` + sem dono: funcionário altera/conclui/remove atividade de outro; `funcionarioId` sem checar mesma empresa.
 - `update` sem revalidar FK destino permite mover registro de empresa.
